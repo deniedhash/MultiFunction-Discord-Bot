@@ -1,0 +1,44 @@
+const express = require('express');
+const crypto = require('crypto');
+const { webhookPort, webhookSecret } = require('../../config');
+const { handleGithubEvent } = require('./eventHandler');
+
+function startWebhookServer(client) {
+    const app = express();
+
+    app.get('/webhook', (req, res) => {
+        res.json({ status: 'ok', message: 'Webhook server is running' });
+    });
+
+    app.post('/webhook', express.json(), (req, res) => {
+        if (webhookSecret) {
+            const signature = req.headers['x-hub-signature-256'];
+            if (!signature) return res.status(401).send('Missing signature');
+
+            const expected = 'sha256=' + crypto
+                .createHmac('sha256', webhookSecret)
+                .update(JSON.stringify(req.body))
+                .digest('hex');
+
+            if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+                return res.status(401).send('Invalid signature');
+            }
+        }
+
+        const eventType = req.headers['x-github-event'];
+        if (!eventType) return res.status(400).send('Missing event type');
+
+        res.status(200).send('OK');
+
+        handleGithubEvent(eventType, req.body, client).catch(err => {
+            console.error('Error handling GitHub event:', err);
+        });
+    });
+
+    const port = webhookPort || 3000;
+    app.listen(port, '0.0.0.0', () => {
+        console.log(`GitHub webhook server listening on port ${port}`);
+    });
+}
+
+module.exports = { startWebhookServer };
