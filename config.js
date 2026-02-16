@@ -6,4 +6,6 @@ module.exports = {
     webhookPort: process.env.WEBHOOK_PORT || 3000,
     webhookSecret: process.env.WEBHOOK_SECRET || '',
     mongoUri: process.env.MONGO_URI || 'mongodb://localhost:27017/discord-bot',
+    spotifyClientId: process.env.SPOTIFY_CLIENT_ID || '',
+    spotifyClientSecret: process.env.SPOTIFY_CLIENT_SECRET || '',
 };
