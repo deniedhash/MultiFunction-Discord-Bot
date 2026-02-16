@@ -7,6 +7,7 @@ const {
     entersState,
 } = require('@discordjs/voice');
 const ytdlp = require('./ytdlp');
+const spotify = require('./spotify');
 
 const queues = new Map();
 
@@ -114,4 +115,31 @@ function createQueue(guildId, voiceChannel, textChannel) {
     return queue;
 }
 
-module.exports = { getQueue, createQueue, search: ytdlp.search };
+async function search(query) {
+    // Try YouTube first
+    try {
+        return await ytdlp.searchYouTube(query);
+    } catch {
+        // YouTube failed — try Spotify search + SoundCloud audio
+    }
+
+    try {
+        const spotifyResult = await spotify.search(query);
+        if (spotifyResult) {
+            const scResult = await ytdlp.searchSoundCloud(spotifyResult.searchQuery);
+            return {
+                ...scResult,
+                title: spotifyResult.title,
+                author: spotifyResult.author,
+                thumbnail: spotifyResult.thumbnail || scResult.thumbnail,
+                source: 'spotify',
+            };
+        }
+    } catch {
+        // Spotify+SoundCloud failed — try plain SoundCloud
+    }
+
+    return await ytdlp.searchSoundCloud(query);
+}
+
+module.exports = { getQueue, createQueue, search };
