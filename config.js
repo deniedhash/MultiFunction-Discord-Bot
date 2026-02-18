@@ -8,4 +8,6 @@ module.exports = {
     mongoUri: process.env.MONGO_URI || 'mongodb://localhost:27017/discord-bot',
     spotifyClientId: process.env.SPOTIFY_CLIENT_ID || '',
     spotifyClientSecret: process.env.SPOTIFY_CLIENT_SECRET || '',
+    encryptionKey: process.env.ENCRYPTION_KEY || '',
+    webhookUrl: process.env.WEBHOOK_URL || '',
 };

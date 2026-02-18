@@ -1,6 +1,6 @@
 const axios = require('axios');
 const { EmbedBuilder } = require('discord.js');
-const { getGitAuths } = require('../../github/gitAuthModel');
+const { getGitAuths, decrypt } = require('../../github/gitAuthModel');
 const { getRepoSetups } = require('../../github/repoSetupModel');
 
 module.exports = {
@@ -18,7 +18,7 @@ module.exports = {
         }
 
         const client = message.client;
-        const token = userData.token;
+        const token = decrypt(userData.token);
 
         // If user is in branch-selection mode (already picked a repo), handle that
         const pendingSelect = client.tempChangeBranchSelect?.[message.author.id];

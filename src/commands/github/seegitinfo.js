@@ -1,6 +1,6 @@
 const axios = require('axios');
 const { EmbedBuilder } = require('discord.js');
-const { getGitAuths } = require('../../github/gitAuthModel');
+const { getGitAuths, decrypt } = require('../../github/gitAuthModel');
 
 module.exports = {
     name: 'seegitinfo',
@@ -17,8 +17,9 @@ module.exports = {
         }
 
         try {
+            const token = decrypt(userData.token);
             const { data: user } = await axios.get('https://api.github.com/user', {
-                headers: { Authorization: `token ${userData.token}` },
+                headers: { Authorization: `token ${token}` },
             });
 
             const embed = new EmbedBuilder()

@@ -1,4 +1,4 @@
-const { getGitAuths, saveGitAuths } = require('../../github/gitAuthModel');
+const { getGitAuths, saveGitAuths, encrypt } = require('../../github/gitAuthModel');
 
 module.exports = {
     name: 'setgit',
@@ -16,7 +16,7 @@ module.exports = {
 
         const doc = await getGitAuths(message.guild.id);
         const users = doc.users instanceof Map ? Object.fromEntries(doc.users) : (doc.users || {});
-        users[message.author.id] = { token };
+        users[message.author.id] = { token: encrypt(token) };
         await saveGitAuths(message.guild.id, users);
 
         await message.channel.send(`${message.author}, your GitHub token has been saved. Your message was deleted to protect your token.`);

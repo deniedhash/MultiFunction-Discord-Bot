@@ -88,6 +88,13 @@ cp .env.example .env
 | `WEBHOOK_SECRET` | Secret for validating GitHub webhook signatures | *optional* |
 | `SPOTIFY_CLIENT_ID` | Spotify app client ID (for Spotify playback) | *optional* |
 | `SPOTIFY_CLIENT_SECRET` | Spotify app client secret | *optional* |
+| `ENCRYPTION_KEY` | Key for encrypting stored GitHub PATs (AES-256-GCM) | *required for file mirroring* |
+
+You can generate a secure encryption key with:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
 
 ### Required Discord Bot Settings
 

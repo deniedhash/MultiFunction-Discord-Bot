@@ -1,6 +1,8 @@
 const axios = require('axios');
 const { EmbedBuilder, ChannelType } = require('discord.js');
 const { getRepoSetups, saveRepoSetups } = require('../../github/repoSetupModel');
+const store = require('../../github/store');
+const { webhookSecret, webhookUrl } = require('../../../config');
 
 const MAX_FILES = 50;
 
@@ -97,17 +99,64 @@ module.exports = {
             };
             await saveRepoSetups(message.guild.id, repos);
 
+            // Auto-setup webhook tracking if not already tracked
+            const existing = await store.getRepoGuild(repoName, message.guild.id);
+            if (!existing) {
+                await store.saveRepoGuild(repoName, message.guild.id, {
+                    categoryId: category.id,
+                    branches: { [selectedBranch]: null },
+                });
+            }
+
+            // Auto-create GitHub webhook if WEBHOOK_URL is configured
+            let webhookStatus = '';
+            if (webhookUrl) {
+                try {
+                    await createGithubWebhook(repoName, token);
+                    webhookStatus = '\nGitHub webhook created — file channels will auto-update on push.';
+                } catch (err) {
+                    if (err.response?.status === 422) {
+                        webhookStatus = '\nGitHub webhook already exists — auto-updates enabled.';
+                    } else {
+                        webhookStatus = '\nCould not create GitHub webhook — auto-updates won\'t work. You can set it up manually.';
+                    }
+                }
+            } else {
+                webhookStatus = '\nSet `WEBHOOK_URL` in .env to enable auto-updates on push.';
+            }
+
             // Clean up temp state
             delete client.tempBranchSelect[message.author.id];
             delete client.tempRepoList?.[message.author.id];
 
-            await statusMsg.edit(`Synced **${repoName}** (branch: \`${selectedBranch}\`) — ${files.length} file(s) created under **${category.name}**.`);
+            await statusMsg.edit(`Synced **${repoName}** (branch: \`${selectedBranch}\`) — ${files.length} file(s) created under **${category.name}**.${webhookStatus}`);
         } catch (err) {
             console.error('setrepo_branch error:', err);
             await statusMsg.edit('Failed to sync repository. Check permissions and try again.');
         }
     },
 };
+
+async function createGithubWebhook(repoName, token) {
+    const config = {
+        url: webhookUrl.replace(/\/$/, '') + '/webhook',
+        content_type: 'json',
+    };
+    if (webhookSecret) {
+        config.secret = webhookSecret;
+    }
+
+    await axios.post(
+        `https://api.github.com/repos/${repoName}/hooks`,
+        {
+            name: 'web',
+            active: true,
+            events: ['push', 'pull_request', 'issues', 'create', 'delete'],
+            config,
+        },
+        { headers: { Authorization: `token ${token}` } },
+    );
+}
 
 function splitContent(text, maxLength) {
     if (text.length <= maxLength) return [text];
