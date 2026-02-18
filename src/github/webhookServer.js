@@ -11,13 +11,16 @@ function startWebhookServer(client) {
     });
 
     app.post('/webhook', express.json(), (req, res) => {
-        if (webhookSecret) {
+        if (webhookSecret && webhookSecret.length > 0) {
             const signature = req.headers['x-hub-signature-256'];
             if (!signature) return res.status(401).send('Missing signature');
 
+            const body = JSON.stringify(req.body);
+            if (!body) return res.status(400).send('Missing body');
+
             const expected = 'sha256=' + crypto
                 .createHmac('sha256', webhookSecret)
-                .update(JSON.stringify(req.body))
+                .update(body)
                 .digest('hex');
 
             if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
@@ -27,6 +30,8 @@ function startWebhookServer(client) {
 
         const eventType = req.headers['x-github-event'];
         if (!eventType) return res.status(400).send('Missing event type');
+
+        if (!req.body) return res.status(400).send('Missing body');
 
         res.status(200).send('OK');
 

@@ -139,7 +139,7 @@ module.exports = {
 
 async function createGithubWebhook(repoName, token) {
     const config = {
-        url: webhookUrl.replace(/\/$/, '') + '/webhook',
+        url: webhookUrl.replace(/\/webhook\/?$/, '').replace(/\/$/, '') + '/webhook',
         content_type: 'json',
     };
     if (webhookSecret) {
