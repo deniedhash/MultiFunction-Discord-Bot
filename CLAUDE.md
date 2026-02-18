@@ -60,6 +60,7 @@ Create a file in `src/commands/<category>/` exporting:
 - `WEBHOOK_PORT` — Port for GitHub webhook server (default: `3000`)
 - `WEBHOOK_SECRET` — Secret for validating GitHub webhook signatures (optional)
 - `MONGO_URI` — MongoDB connection string (default: `mongodb://localhost:27017/discord-bot`)
+- `ENCRYPTION_KEY` — Key used to encrypt/decrypt stored GitHub PATs (required for file mirroring)
 
 ## Required Discord Intents
 Guilds, GuildMessages, MessageContent (privileged), GuildVoiceStates

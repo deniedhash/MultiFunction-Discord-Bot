@@ -1,6 +1,6 @@
 const axios = require('axios');
 const { ChannelType } = require('discord.js');
-const { getGitAuths } = require('../../github/gitAuthModel');
+const { getGitAuths, decrypt } = require('../../github/gitAuthModel');
 const { getRepoSetups } = require('../../github/repoSetupModel');
 
 module.exports = {
@@ -26,7 +26,7 @@ module.exports = {
         }
 
         const statusMsg = await message.reply(`Updating ${repoNames.length} repo(s)...`);
-        const token = userData.token;
+        const token = decrypt(userData.token);
         let updated = 0;
 
         for (const repoName of repoNames) {

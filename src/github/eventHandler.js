@@ -1,6 +1,9 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, ChannelType } = require('discord.js');
+const axios = require('axios');
 const store = require('./store');
 const { ensureBranchChannel, removeBranchChannel } = require('./channelManager');
+const { getRepoSetups } = require('./repoSetupModel');
+const { getGitAuths, decrypt } = require('./gitAuthModel');
 
 async function handleGithubEvent(eventType, payload, client) {
     const repoFullName = payload.repository?.full_name;
@@ -19,6 +22,7 @@ async function handleGithubEvent(eventType, payload, client) {
             switch (eventType) {
                 case 'push':
                     await handlePush(guild, { ...repoConfig, branches }, repoFullName, payload);
+                    await autoSyncMirroredFiles(guild, repoFullName, payload);
                     break;
                 case 'pull_request':
                     await handlePullRequest(guild, { ...repoConfig, branches }, payload);
@@ -144,6 +148,98 @@ async function handleDelete(guild, repoConfig, repoFullName, payload) {
     const branch = payload.ref;
     await removeBranchChannel(guild, repoConfig, branch);
     await store.removeBranch(repoFullName, guild.id, branch);
+}
+
+async function autoSyncMirroredFiles(guild, repoFullName, payload) {
+    const branch = payload.ref?.replace('refs/heads/', '');
+    if (!branch) return;
+
+    const setupDoc = await getRepoSetups(guild.id);
+    const repos = setupDoc.repos || {};
+    const repoInfo = repos[repoFullName];
+
+    // Only sync if this repo+branch is mirrored
+    if (!repoInfo || repoInfo.branch !== branch) return;
+
+    // Get the token from whoever added the repo
+    const authDoc = await getGitAuths(guild.id);
+    const users = authDoc.users instanceof Map ? Object.fromEntries(authDoc.users) : (authDoc.users || {});
+    const userData = users[repoInfo.addedBy];
+    if (!userData || !userData.token) return;
+
+    let token;
+    try {
+        token = decrypt(userData.token);
+    } catch {
+        return;
+    }
+
+    // Collect changed file paths from all commits
+    const changedFiles = new Set();
+    for (const commit of payload.commits || []) {
+        for (const f of commit.added || []) changedFiles.add(f);
+        for (const f of commit.modified || []) changedFiles.add(f);
+    }
+
+    if (changedFiles.size === 0) return;
+
+    const category = guild.channels.cache.get(repoInfo.categoryId);
+    if (!category) return;
+
+    const channels = guild.channels.cache.filter(
+        c => c.parentId === category.id && c.type === ChannelType.GuildText
+    );
+
+    for (const filePath of changedFiles) {
+        const expectedName = filePath
+            .replace(/[^a-zA-Z0-9-]/g, '-')
+            .replace(/-+/g, '-')
+            .replace(/^-|-$/g, '')
+            .toLowerCase()
+            .slice(0, 100);
+
+        const channel = channels.find(c => c.name === expectedName);
+        if (!channel) continue;
+
+        try {
+            const { data: fileData } = await axios.get(
+                `https://api.github.com/repos/${repoFullName}/contents/${filePath}`,
+                {
+                    headers: { Authorization: `token ${token}` },
+                    params: { ref: branch },
+                },
+            );
+
+            const content = Buffer.from(fileData.content || '', 'base64').toString('utf-8');
+
+            // Clear old messages
+            const messages = await channel.messages.fetch({ limit: 100 });
+            for (const [, msg] of messages) {
+                try { await msg.delete(); } catch {}
+            }
+
+            // Post updated content
+            const header = `**${filePath}** (branch: \`${branch}\`) — *Auto-updated*\n`;
+            const chunks = splitContent(content, 1900);
+            await channel.send(header);
+            for (const chunk of chunks) {
+                await channel.send(`\`\`\`\n${chunk}\n\`\`\``);
+            }
+        } catch (err) {
+            console.error(`Auto-sync failed for ${filePath}:`, err.message);
+        }
+    }
+}
+
+function splitContent(text, maxLength) {
+    if (text.length <= maxLength) return [text];
+    const chunks = [];
+    let i = 0;
+    while (i < text.length) {
+        chunks.push(text.slice(i, i + maxLength));
+        i += maxLength;
+    }
+    return chunks;
 }
 
 module.exports = { handleGithubEvent };

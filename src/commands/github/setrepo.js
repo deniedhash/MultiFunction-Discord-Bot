@@ -1,6 +1,6 @@
 const axios = require('axios');
 const { EmbedBuilder } = require('discord.js');
-const { getGitAuths } = require('../../github/gitAuthModel');
+const { getGitAuths, decrypt } = require('../../github/gitAuthModel');
 
 module.exports = {
     name: 'setrepo',
@@ -16,7 +16,7 @@ module.exports = {
             return message.reply('You have not set a GitHub token. Use `!setgit <token>` first.');
         }
 
-        const token = userData.token;
+        const token = decrypt(userData.token);
         const client = message.client;
 
         // If no args, list repos
