@@ -52,6 +52,7 @@ Authenticate with GitHub and mirror repository files directly into Discord chann
 | `!userinfo [@user]` | Show user information |
 | `!serverinfo` | Show server information |
 | `!avatar [@user]` | Show a user's avatar |
+| `!invite` | Get the bot's invite link |
 
 ## Setup
 
@@ -140,7 +141,7 @@ docker run -d --env-file .env --link mongo:mongo \
 │   │   ├── eventHandler.js           # Loads Discord events
 │   │   └── playerHandler.js          # Music player events
 │   ├── commands/
-│   │   ├── general/                  # ping, help, userinfo, serverinfo, avatar
+│   │   ├── general/                  # ping, help, userinfo, serverinfo, avatar, invite
 │   │   ├── music/                    # play, skip, stop, queue, nowplaying, pause, resume
 │   │   └── github/                   # repo, setgit, seegitinfo, setrepo, etc.
 │   ├── events/
