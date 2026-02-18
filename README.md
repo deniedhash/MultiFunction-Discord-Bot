@@ -27,7 +27,7 @@ Receive real-time GitHub events (pushes, PRs, issues, branch activity) as Discor
 | `!repo list` | List all tracked repos in the server |
 
 ### GitHub File Mirroring
-Authenticate with GitHub and mirror repository files directly into Discord channels — one channel per file, with file contents displayed as code blocks.
+Authenticate with GitHub and mirror repository files directly into Discord channels — one channel per file, with file contents displayed as code blocks. File channels **auto-update on push** via automatically created GitHub webhooks.
 
 | Command | Description |
 |---------|-------------|
@@ -36,13 +36,15 @@ Authenticate with GitHub and mirror repository files directly into Discord chann
 | `!cleargit` | Remove your stored GitHub token |
 | `!setrepo` | List your GitHub repos |
 | `!setrepo <n>` | Select a repo and view its branches |
-| `!setrepo_branch <n>` | Sync a branch — creates channels with file contents (up to 50 files) |
-| `!updaterepo` | Re-fetch and update all synced file contents |
+| `!setrepo_branch <n>` | Sync a branch — creates channels, mirrors files, and auto-creates GitHub webhook |
+| `!updaterepo` | Manually re-fetch and update all synced file contents |
 | `!changegitbranch` | Switch branch on a synced repo |
 | `!changegitbranch_select <n>` | Confirm branch switch and re-sync files |
 | `!clearrepo [n]` | Remove a synced repo and its channels |
 | `!listrepos` | List all synced repos with details |
 | `!clearallrepos` | Remove all synced repos (with confirmation) |
+
+> **Note:** Your GitHub PAT needs the `admin:repo_hook` permission to auto-create webhooks. Tokens are encrypted with AES-256-GCM before being stored in the database.
 
 ### General
 | Command | Description |
@@ -89,6 +91,7 @@ cp .env.example .env
 | `SPOTIFY_CLIENT_ID` | Spotify app client ID (for Spotify playback) | *optional* |
 | `SPOTIFY_CLIENT_SECRET` | Spotify app client secret | *optional* |
 | `ENCRYPTION_KEY` | Key for encrypting stored GitHub PATs (AES-256-GCM) | *required for file mirroring* |
+| `WEBHOOK_URL` | Public URL of your bot server (for auto-creating GitHub webhooks) | *optional* |
 
 You can generate a secure encryption key with:
 
