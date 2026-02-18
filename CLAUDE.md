@@ -1,6 +1,6 @@
 # Discord Bot
 
-Discord bot built with discord.js v14, using prefix commands, with music playback via discord-player and GitHub repo activity tracking via webhooks.
+Discord bot built with discord.js v14, using prefix commands, with music playback via discord-player, GitHub repo activity tracking via webhooks, and API-based GitHub file mirroring.
 
 ## Tech Stack
 - **Runtime:** Node.js (CommonJS)
@@ -8,6 +8,7 @@ Discord bot built with discord.js v14, using prefix commands, with music playbac
 - **Framework:** discord.js v14
 - **Music:** discord-player v6 + @discord-player/extractor
 - **GitHub Webhooks:** express (HTTP server for receiving GitHub events)
+- **GitHub API:** axios (file mirroring via GitHub REST API)
 - **Database:** MongoDB via mongoose
 
 ## Project Structure
@@ -16,9 +17,11 @@ Discord bot built with discord.js v14, using prefix commands, with music playbac
 - `src/handlers/` — commandHandler, eventHandler, playerHandler
 - `src/commands/general/` — ping, help, userinfo, serverinfo, avatar
 - `src/commands/music/` — play, skip, stop, queue, nowplaying, pause, resume
-- `src/commands/github/` — repo (add/remove/list)
-- `src/github/` — webhookServer, eventHandler, channelManager, store
+- `src/commands/github/` — repo, setgit, seegitinfo, cleargit, setrepo, setrepobranch, updaterepo, changegitbranch, changegitbranchselect, clearrepo, listrepos, clearallrepos
+- `src/github/` — webhookServer, eventHandler, channelManager, store, gitAuthModel, repoSetupModel
 - MongoDB `repos` collection — Persisted repo-to-guild/channel mappings (one doc per repo+guild pair)
+- MongoDB `gitauths` collection — GitHub PATs per user per server
+- MongoDB `reposetups` collection — File-mirror repo setups per server
 - `src/events/` — ready, messageCreate
 
 ## Commands
@@ -38,6 +41,18 @@ Create a file in `src/commands/<category>/` exporting:
 - Same repo can be tracked in multiple servers — webhook events fan out to all linked guilds
 - GitHub webhook events (push, PR, issues, branch create/delete) are posted as embeds to per-branch channels
 - Webhook endpoint: `POST /webhook` on the configured port
+
+## GitHub File Mirroring (API-based)
+- `!setgit <token>` — Save GitHub PAT for this server (auto-deletes message)
+- `!seegitinfo` — Show connected GitHub account info
+- `!cleargit` — Remove stored GitHub token
+- `!setrepo` → `!setrepo <n>` → `!setrepo_branch <n>` — Browse repos/branches, sync files to Discord channels (up to 50 files per repo)
+- `!updaterepo` — Re-fetch and update all synced file contents
+- `!changegitbranch` → `!changegitbranch_select <n>` — Switch branch on a synced repo
+- `!clearrepo [n]` — Remove a synced repo and its channels
+- `!listrepos` — List all synced repos
+- `!clearallrepos` — Remove all synced repos (with confirmation)
+- Temp selection state stored on `client.tempRepoList`, `client.tempBranchSelect`, etc.
 
 ## Environment Variables (.env)
 - `DISCORD_TOKEN` — Bot token
