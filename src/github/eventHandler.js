@@ -89,16 +89,18 @@ async function handlePullRequest(guild, repoConfig, payload) {
     const repoFullName = payload.repository?.full_name || 'Unknown';
     const user = pr.user?.login || 'Unknown';
 
+    const descParts = [
+        `**${user}** ${label.toLowerCase()} a PR in **${repoFullName}**\n`,
+        `\u{1F4CC} **Title:** ${pr.title || 'Untitled'}`,
+        `\u{1F6E0}\u{FE0F} **Branch:** \`${pr.head?.ref || '?'}\` \u2192 \`${pr.base?.ref || '?'}\``,
+    ];
+    if (pr.body) descParts.push(`\u{1F4AC} **Description:** ${pr.body.slice(0, 200)}`);
+    descParts.push(`\u{1F517} **PR URL:** [View PR](${pr.html_url})`);
+
     const embed = new EmbedBuilder()
         .setColor(color)
         .setTitle(`${emoji} Pull Request ${label}`)
-        .setDescription(
-            `**${user}** ${label.toLowerCase()} a PR in **${repoFullName}**\n\n` +
-            `\u{1F4CC} **Title:** ${pr.title}\n` +
-            `\u{1F6E0}\u{FE0F} **Branch:** \`${pr.head?.ref || '?'}\` \u2192 \`${pr.base?.ref || '?'}\`\n` +
-            (pr.body ? `\u{1F4AC} **Description:** ${pr.body.slice(0, 200)}\n` : '') +
-            `\u{1F517} **PR URL:** [View PR](${pr.html_url})`,
-        )
+        .setDescription(descParts.join('\n'))
         .setTimestamp();
 
     if (pr.user?.avatar_url) embed.setThumbnail(pr.user.avatar_url);
@@ -123,15 +125,17 @@ async function handleIssue(guild, repoConfig, payload, client) {
     const repoFullName = payload.repository?.full_name || 'Unknown';
     const user = issue.user?.login || 'Unknown';
 
+    const descParts = [
+        `**${user}** ${label.toLowerCase()} an issue in **${repoFullName}**\n`,
+        `\u{1F4CC} **Title:** ${issue.title || 'Untitled'}`,
+    ];
+    if (issue.body) descParts.push(`\u{1F4AC} **Description:** ${issue.body.slice(0, 200)}`);
+    descParts.push(`\u{1F517} **Issue URL:** [View Issue](${issue.html_url})`);
+
     const embed = new EmbedBuilder()
         .setColor(color)
         .setTitle(`${emoji} Issue ${label}`)
-        .setDescription(
-            `**${user}** ${label.toLowerCase()} an issue in **${repoFullName}**\n\n` +
-            `\u{1F4CC} **Title:** ${issue.title}\n` +
-            (issue.body ? `\u{1F4AC} **Description:** ${issue.body.slice(0, 200)}\n` : '') +
-            `\u{1F517} **Issue URL:** [View Issue](${issue.html_url})`,
-        )
+        .setDescription(descParts.join('\n'))
         .setTimestamp();
 
     if (issue.user?.avatar_url) embed.setThumbnail(issue.user.avatar_url);
