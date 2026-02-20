@@ -4,6 +4,7 @@ const store = require('./store');
 const { ensureBranchChannel, removeBranchChannel } = require('./channelManager');
 const { getRepoSetups } = require('./repoSetupModel');
 const { getGitAuths, decrypt } = require('./gitAuthModel');
+const { createBugFromExternal } = require('../bugs/bugManager');
 
 async function handleGithubEvent(eventType, payload, client) {
     const repoFullName = payload.repository?.full_name;
@@ -28,7 +29,7 @@ async function handleGithubEvent(eventType, payload, client) {
                     await handlePullRequest(guild, { ...repoConfig, branches }, payload);
                     break;
                 case 'issues':
-                    await handleIssue(guild, { ...repoConfig, branches }, payload);
+                    await handleIssue(guild, { ...repoConfig, branches }, payload, client);
                     break;
                 case 'create':
                     await handleCreate(guild, { ...repoConfig, branches }, repoFullName, payload);
@@ -96,7 +97,7 @@ async function handlePullRequest(guild, repoConfig, payload) {
     await channel.send({ embeds: [embed] });
 }
 
-async function handleIssue(guild, repoConfig, payload) {
+async function handleIssue(guild, repoConfig, payload, client) {
     const issue = payload.issue;
     if (!issue) return;
 
@@ -121,6 +122,26 @@ async function handleIssue(guild, repoConfig, payload) {
         .setTimestamp();
 
     await channel.send({ embeds: [embed] });
+
+    // Auto-create a bug from opened issues
+    if (action === 'opened' && client) {
+        const repoFullName = payload.repository?.full_name;
+        if (repoFullName) {
+            try {
+                await createBugFromExternal(client, {
+                    guildId: guild.id,
+                    repoName: repoFullName,
+                    title: issue.title,
+                    description: issue.body ? issue.body.slice(0, 4000) : 'No description provided.',
+                    severity: 'normal',
+                    reporterPlatform: 'github',
+                    reporterName: issue.user?.login || 'unknown',
+                });
+            } catch (err) {
+                console.error(`Failed to create bug from GitHub issue in guild ${guild.id}:`, err);
+            }
+        }
+    }
 }
 
 async function handleCreate(guild, repoConfig, repoFullName, payload) {

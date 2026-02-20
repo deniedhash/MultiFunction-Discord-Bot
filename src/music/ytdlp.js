@@ -13,6 +13,12 @@ function buildArgs(baseArgs) {
     return baseArgs;
 }
 
+// Prefer android client for YouTube — provides direct https URLs instead of m3u8/HLS
+// which avoids 403 fragment errors from YouTube's anti-bot on HLS streams
+// Use android client for YouTube — provides direct https URLs instead of m3u8/HLS
+// which avoids 403 fragment errors from YouTube's anti-bot on HLS streams
+const YT_EXTRACTOR_ARGS = ['--extractor-args', 'youtube:player_client=android'];
+
 async function searchYouTube(query) {
     const args = buildArgs([
         `ytsearch:${query}`,
@@ -20,6 +26,7 @@ async function searchYouTube(query) {
         '--no-download',
         '--no-warnings',
         '--default-search', 'ytsearch',
+        ...YT_EXTRACTOR_ARGS,
     ]);
 
     const { stdout } = await execFileAsync('yt-dlp', args, { timeout: 15000 });
@@ -64,17 +71,45 @@ async function search(query) {
     }
 }
 
+function spawnYtdlp(extraArgs) {
+    const proc = spawn('yt-dlp', extraArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+
+    proc.stderr.on('data', (data) => {
+        console.error(`[yt-dlp stderr] ${data.toString().trim()}`);
+    });
+
+    proc.on('exit', (code) => {
+        if (code && code !== 0) {
+            console.error(`[yt-dlp] exited with code ${code}`);
+        }
+    });
+
+    return proc.stdout;
+}
+
 function stream(url) {
     const args = buildArgs([
-        '-f', 'bestaudio',
+        '-f', 'bestaudio/best',
         '-o', '-',
         '--no-warnings',
-        '--quiet',
+        ...YT_EXTRACTOR_ARGS,
         url,
     ]);
 
-    const process = spawn('yt-dlp', args, { stdio: ['ignore', 'pipe', 'ignore'] });
-    return process.stdout;
+    return spawnYtdlp(args);
 }
 
-module.exports = { search, searchYouTube, searchSoundCloud, stream };
+function streamFrom(url, seconds) {
+    const args = buildArgs([
+        '-f', 'bestaudio/best',
+        '-o', '-',
+        '--no-warnings',
+        ...YT_EXTRACTOR_ARGS,
+        '--download-sections', `*${seconds}-`,
+        url,
+    ]);
+
+    return spawnYtdlp(args);
+}
+
+module.exports = { search, searchYouTube, searchSoundCloud, stream, streamFrom };

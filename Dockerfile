@@ -6,6 +6,9 @@ RUN apt-get update && \
     npm i -g pnpm && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Verify yt-dlp and ffmpeg are available
+RUN yt-dlp --version && ffmpeg -version | head -1
+
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml ./
