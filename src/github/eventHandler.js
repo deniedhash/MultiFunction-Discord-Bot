@@ -47,23 +47,25 @@ async function handleGithubEvent(eventType, payload, client) {
 }
 
 async function handlePush(guild, repoConfig, repoFullName, payload) {
-    const branch = payload.ref?.replace('refs/heads/', '');
-    if (!branch) return;
-
     const channel = getUpdatesChannel(guild, repoConfig);
     if (!channel) return;
+
+    const pusher = payload.sender?.login || payload.pusher?.name || 'Unknown';
+    const avatarUrl = payload.sender?.avatar_url;
 
     for (const commit of payload.commits || []) {
         const embed = new EmbedBuilder()
             .setColor(0x2ea44f)
-            .setTitle(`Commit to ${branch}`)
-            .setURL(commit.url)
-            .setDescription(`\`${commit.id.slice(0, 7)}\` ${commit.message}`)
-            .setAuthor({
-                name: commit.author?.name || 'Unknown',
-                iconURL: payload.sender?.avatar_url,
-            })
+            .setTitle('\u{1F680} Git Update')
+            .setDescription(
+                `**${pusher}** made a commit in **${repoFullName}**\n\n` +
+                `\u{1F6E0}\u{FE0F} **Branch:** \`${payload.ref}\`\n` +
+                `\u{1F4AC} **Commit message:** ${commit.message}\n` +
+                `\u{1F517} **Commit URL:** [View Commit](${commit.url})`,
+            )
             .setTimestamp(new Date(commit.timestamp || Date.now()));
+
+        if (avatarUrl) embed.setThumbnail(avatarUrl);
 
         await channel.send({ embeds: [embed] });
     }
@@ -77,22 +79,29 @@ async function handlePullRequest(guild, repoConfig, payload) {
     if (!['opened', 'closed', 'reopened'].includes(action)) return;
 
     const merged = action === 'closed' && pr.merged;
-    const label = merged ? 'merged' : action;
+    const label = merged ? 'Merged' : action.charAt(0).toUpperCase() + action.slice(1);
+    const emoji = merged ? '\u{1F7E3}' : action === 'opened' ? '\u{1F7E2}' : '\u{1F534}';
     const color = merged ? 0x8957e5 : action === 'opened' ? 0x2ea44f : 0xda3633;
 
     const channel = getUpdatesChannel(guild, repoConfig);
     if (!channel) return;
 
+    const repoFullName = payload.repository?.full_name || 'Unknown';
+    const user = pr.user?.login || 'Unknown';
+
     const embed = new EmbedBuilder()
         .setColor(color)
-        .setTitle(`PR ${label}: ${pr.title}`)
-        .setURL(pr.html_url)
-        .setDescription(pr.body ? pr.body.slice(0, 200) : '')
-        .setAuthor({
-            name: pr.user?.login || 'Unknown',
-            iconURL: pr.user?.avatar_url,
-        })
+        .setTitle(`${emoji} Pull Request ${label}`)
+        .setDescription(
+            `**${user}** ${label.toLowerCase()} a PR in **${repoFullName}**\n\n` +
+            `\u{1F4CC} **Title:** ${pr.title}\n` +
+            `\u{1F6E0}\u{FE0F} **Branch:** \`${pr.head?.ref || '?'}\` \u2192 \`${pr.base?.ref || '?'}\`\n` +
+            (pr.body ? `\u{1F4AC} **Description:** ${pr.body.slice(0, 200)}\n` : '') +
+            `\u{1F517} **PR URL:** [View PR](${pr.html_url})`,
+        )
         .setTimestamp();
+
+    if (pr.user?.avatar_url) embed.setThumbnail(pr.user.avatar_url);
 
     await channel.send({ embeds: [embed] });
 }
@@ -104,21 +113,28 @@ async function handleIssue(guild, repoConfig, payload, client) {
     const action = payload.action;
     if (!['opened', 'closed', 'reopened'].includes(action)) return;
 
+    const emoji = action === 'opened' ? '\u{1F7E2}' : action === 'closed' ? '\u{1F534}' : '\u{1F7E0}';
+    const label = action.charAt(0).toUpperCase() + action.slice(1);
     const color = action === 'opened' ? 0x2ea44f : action === 'closed' ? 0xda3633 : 0xf0883e;
 
     const channel = getUpdatesChannel(guild, repoConfig);
     if (!channel) return;
 
+    const repoFullName = payload.repository?.full_name || 'Unknown';
+    const user = issue.user?.login || 'Unknown';
+
     const embed = new EmbedBuilder()
         .setColor(color)
-        .setTitle(`Issue ${action}: ${issue.title}`)
-        .setURL(issue.html_url)
-        .setDescription(issue.body ? issue.body.slice(0, 200) : '')
-        .setAuthor({
-            name: issue.user?.login || 'Unknown',
-            iconURL: issue.user?.avatar_url,
-        })
+        .setTitle(`${emoji} Issue ${label}`)
+        .setDescription(
+            `**${user}** ${label.toLowerCase()} an issue in **${repoFullName}**\n\n` +
+            `\u{1F4CC} **Title:** ${issue.title}\n` +
+            (issue.body ? `\u{1F4AC} **Description:** ${issue.body.slice(0, 200)}\n` : '') +
+            `\u{1F517} **Issue URL:** [View Issue](${issue.html_url})`,
+        )
         .setTimestamp();
+
+    if (issue.user?.avatar_url) embed.setThumbnail(issue.user.avatar_url);
 
     await channel.send({ embeds: [embed] });
 
@@ -149,14 +165,19 @@ async function handleCreate(guild, repoConfig, payload) {
     const channel = getUpdatesChannel(guild, repoConfig);
     if (!channel) return;
 
+    const repoFullName = payload.repository?.full_name || 'Unknown';
+    const user = payload.sender?.login || 'Unknown';
+
     const embed = new EmbedBuilder()
         .setColor(0x2ea44f)
-        .setTitle(`Branch created: ${payload.ref}`)
-        .setAuthor({
-            name: payload.sender?.login || 'Unknown',
-            iconURL: payload.sender?.avatar_url,
-        })
+        .setTitle('\u{1F33F} Branch Created')
+        .setDescription(
+            `**${user}** created a branch in **${repoFullName}**\n\n` +
+            `\u{1F6E0}\u{FE0F} **Branch:** \`${payload.ref}\``,
+        )
         .setTimestamp();
+
+    if (payload.sender?.avatar_url) embed.setThumbnail(payload.sender.avatar_url);
 
     await channel.send({ embeds: [embed] });
 }
@@ -167,14 +188,19 @@ async function handleDelete(guild, repoConfig, payload) {
     const channel = getUpdatesChannel(guild, repoConfig);
     if (!channel) return;
 
+    const repoFullName = payload.repository?.full_name || 'Unknown';
+    const user = payload.sender?.login || 'Unknown';
+
     const embed = new EmbedBuilder()
         .setColor(0xda3633)
-        .setTitle(`Branch deleted: ${payload.ref}`)
-        .setAuthor({
-            name: payload.sender?.login || 'Unknown',
-            iconURL: payload.sender?.avatar_url,
-        })
+        .setTitle('\u{1F5D1}\u{FE0F} Branch Deleted')
+        .setDescription(
+            `**${user}** deleted a branch in **${repoFullName}**\n\n` +
+            `\u{1F6E0}\u{FE0F} **Branch:** \`${payload.ref}\``,
+        )
         .setTimestamp();
+
+    if (payload.sender?.avatar_url) embed.setThumbnail(payload.sender.avatar_url);
 
     await channel.send({ embeds: [embed] });
 }
