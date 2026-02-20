@@ -89,7 +89,7 @@ async function handleBugCreate(interaction, repoName) {
     await interaction.deferReply({ flags: 64 });
 
     const title = interaction.fields.getTextInputValue('bug_title');
-    const description = interaction.fields.getTextInputValue('bug_description');
+    const description = interaction.fields.getTextInputValue('bug_description') || '';
     const steps = interaction.fields.getTextInputValue('bug_steps') || '';
     const rawSeverity = (interaction.fields.getTextInputValue('bug_severity') || 'normal').toLowerCase().trim();
     const severity = ['low', 'normal', 'high', 'critical'].includes(rawSeverity) ? rawSeverity : 'normal';

@@ -149,7 +149,7 @@ function buildAddBugModal(repoName) {
         .setCustomId('bug_description')
         .setLabel('Description')
         .setStyle(TextInputStyle.Paragraph)
-        .setRequired(true);
+        .setRequired(false);
 
     const stepsInput = new TextInputBuilder()
         .setCustomId('bug_steps')
@@ -356,23 +356,14 @@ async function updateBugListMessage(client, bug) {
     const guild = client.guilds.cache.get(bug.guildId);
     if (!guild) return;
 
-    const category = await ensureBugsCategory(guild);
-    const bugListChannel = await ensureBugListChannel(guild, category);
-
-    // Also ensure #add-bug exists with the button so the system is fully usable
-    const addBugChannel = await ensureAddBugChannel(guild, category);
-    try {
-        const pins = await addBugChannel.messages.fetchPins();
-        const botId = guild.members.me?.id;
-        const alreadySetUp = botId && pins.some(m => m.author?.id === botId && m.embeds.length > 0);
-        if (!alreadySetUp) {
-            const msg = await addBugChannel.send({
-                embeds: [buildAddBugEmbed()],
-                components: [buildAddBugButton()],
-            });
-            await msg.pin().catch(() => {});
-        }
-    } catch { /* non-critical — #add-bug setup can be done manually via !addbug */ }
+    const category = guild.channels.cache.find(
+        c => c.type === ChannelType.GuildCategory && c.name.toLowerCase() === 'bugs',
+    );
+    if (!category) return;
+    const bugListChannel = guild.channels.cache.find(
+        c => c.parentId === category.id && c.name === 'bug-list',
+    );
+    if (!bugListChannel) return;
 
     const embed = buildBugListEmbed(bug);
     const components = buildBugListComponents(bug);
@@ -389,6 +380,40 @@ async function updateBugListMessage(client, bug) {
 
     const msg = await bugListChannel.send({ embeds: [embed], components });
     await bugModel.setBugListMessageId(bug._id.toString(), msg.id);
+}
+
+async function backfillBugList(client, guildId) {
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) return;
+
+    const allBugs = await bugModel.getBugsByGuild(guildId);
+
+    // 1. Create channels for unresolved bugs that don't have one
+    for (const bug of allBugs) {
+        if (bug.status === 'resolved') continue;
+        const existingChannel = bug.channelId ? guild.channels.cache.get(bug.channelId) : null;
+        if (existingChannel) continue;
+
+        const bugId = bug._id.toString();
+        const category = await ensureBugsCategoryForRepo(guild, bug.repoName);
+        const channel = await createBugChannel(guild, category, bug);
+        await bugModel.setBugChannelId(bugId, channel.id);
+
+        const embedMsg = await channel.send({
+            embeds: [buildBugDetailEmbed(bug)],
+            components: [buildBugChannelButtons(bug)],
+        });
+        await bugModel.setBugEmbedMessageId(bugId, embedMsg.id);
+    }
+
+    // 2. Post all bugs to #bug-list (ordered by creation time, oldest first)
+    const sortedBugs = [...allBugs].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    for (const bug of sortedBugs) {
+        // Clear stale bugListMessageId so updateBugListMessage posts a fresh one
+        await bugModel.setBugListMessageId(bug._id.toString(), null);
+        const freshBug = await bugModel.getBug(bug._id.toString());
+        await updateBugListMessage(client, freshBug);
+    }
 }
 
 // ── External bug creation (API + GitHub Issues) ──
@@ -413,6 +438,12 @@ async function createBugFromExternal(client, data) {
 
     const bugId = bug._id.toString();
 
+    // Only create channels if !addbug has been set up (shared Bugs category exists)
+    const bugsCategory = guild.channels.cache.find(
+        c => c.type === ChannelType.GuildCategory && c.name.toLowerCase() === 'bugs',
+    );
+    if (!bugsCategory) return bug;
+
     const category = await ensureBugsCategoryForRepo(guild, repoName);
     const channel = await createBugChannel(guild, category, bug);
     await bugModel.setBugChannelId(bugId, channel.id);
@@ -436,6 +467,6 @@ module.exports = {
     buildBugDetailEmbed, buildBugChannelButtons,
     buildBugListEmbed, buildBugListComponents, buildUpdateModal,
     scheduleDeletion, cancelDeletion,
-    replayUpdatesToChannel, updateBugListMessage, createBugFromExternal,
+    replayUpdatesToChannel, updateBugListMessage, backfillBugList, createBugFromExternal,
     deletionTimers,
 };

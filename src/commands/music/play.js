@@ -18,7 +18,7 @@ module.exports = {
 
     try {
       const track = await search(query);
-      const queue = createQueue(
+      const queue = await createQueue(
         message.guild.id,
         voiceChannel,
         message.channel,

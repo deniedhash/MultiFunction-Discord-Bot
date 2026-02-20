@@ -17,7 +17,7 @@ const bugSchema = new mongoose.Schema({
     guildId: { type: String, required: true },
     repoName: { type: String, required: true },
     title: { type: String, required: true },
-    description: { type: String, required: true },
+    description: { type: String, default: '' },
     steps: { type: String, default: '' },
     severity: { type: String, default: 'normal' },
     status: { type: String, enum: ['open', 'wip', 'resolved'], default: 'open' },
@@ -117,6 +117,10 @@ async function getIncompleteReplays() {
     return Bug.find({ replayComplete: false }).lean();
 }
 
+async function getBugsByGuildWithoutListMessage(guildId) {
+    return Bug.find({ guildId, bugListMessageId: null }).sort({ createdAt: 1 }).lean();
+}
+
 async function deleteBug(bugId) {
     return Bug.findByIdAndDelete(bugId).lean();
 }
@@ -126,5 +130,5 @@ module.exports = {
     atomicSetStatus, atomicSetWip,
     addUpdate, setDeletionScheduled, clearDeletionScheduled, addReopenEntry,
     setBugChannelId, setBugEmbedMessageId, setBugListMessageId, setReplayComplete,
-    getPendingDeletions, getIncompleteReplays, deleteBug,
+    getPendingDeletions, getIncompleteReplays, getBugsByGuildWithoutListMessage, deleteBug,
 };

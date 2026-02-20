@@ -1,7 +1,7 @@
 const { PermissionFlagsBits } = require('discord.js');
 const {
     ensureBugsCategory, ensureAddBugChannel, ensureBugListChannel,
-    buildAddBugEmbed, buildAddBugButton,
+    buildAddBugEmbed, buildAddBugButton, backfillBugList,
 } = require('../../bugs/bugManager');
 const { getGuildRepos } = require('../../github/store');
 
@@ -26,18 +26,21 @@ module.exports = {
         await ensureBugListChannel(guild, category);
 
         // Check if the add-bug channel already has a pinned bug embed
-        const pins = await addBugChannel.messages.fetchPins();
-        const alreadySetUp = pins.items.some(m => m.author.id === message.client.user.id && m.embeds.length > 0);
+        const pinsResult = await addBugChannel.messages.fetchPins();
+        const pins = pinsResult.items || pinsResult;
+        const botId = guild.members.me?.id;
+        const alreadySetUp = botId && [...pins.values()].some(m => m.author?.id === botId && m.embeds.length > 0);
 
-        if (alreadySetUp) {
-            return message.reply(`Bug tracking is already set up! See ${addBugChannel}.`);
+        if (!alreadySetUp) {
+            const msg = await addBugChannel.send({
+                embeds: [buildAddBugEmbed()],
+                components: [buildAddBugButton()],
+            });
+            await msg.pin();
         }
 
-        const msg = await addBugChannel.send({
-            embeds: [buildAddBugEmbed()],
-            components: [buildAddBugButton()],
-        });
-        await msg.pin();
+        // Backfill any bugs that aren't in #bug-list yet
+        await backfillBugList(message.client, guild.id);
 
         await message.reply(`Bug tracking is ready! Head to ${addBugChannel} to report bugs.`);
     },
