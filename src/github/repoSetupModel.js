@@ -27,4 +27,26 @@ async function getAllRepoSetups() {
     return RepoSetup.find({}).lean();
 }
 
-module.exports = { getRepoSetups, saveRepoSetups, getAllRepoSetups };
+async function getGuildsForRepo(repoName) {
+    const allDocs = await RepoSetup.find({}).lean();
+    const results = [];
+    for (const doc of allDocs) {
+        const repos = doc.repos || {};
+        if (repos[repoName]) {
+            results.push({
+                guildId: doc.serverId,
+                categoryId: repos[repoName].categoryId,
+                branch: repos[repoName].branch,
+            });
+        }
+    }
+    return results;
+}
+
+async function getGuildRepoList(guildId) {
+    const doc = await RepoSetup.findOne({ serverId: guildId }).lean();
+    if (!doc || !doc.repos) return [];
+    return Object.keys(doc.repos).map(name => ({ repoName: name }));
+}
+
+module.exports = { getRepoSetups, saveRepoSetups, getAllRepoSetups, getGuildsForRepo, getGuildRepoList };

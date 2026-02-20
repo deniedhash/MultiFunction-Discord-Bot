@@ -1,7 +1,6 @@
 const axios = require('axios');
 const { EmbedBuilder, ChannelType } = require('discord.js');
 const { getRepoSetups, saveRepoSetups } = require('../../github/repoSetupModel');
-const store = require('../../github/store');
 const { webhookSecret, webhookUrl } = require('../../../config');
 
 const MAX_FILES = 50;
@@ -98,15 +97,6 @@ module.exports = {
                 branch: selectedBranch,
             };
             await saveRepoSetups(message.guild.id, repos);
-
-            // Auto-setup webhook tracking if not already tracked
-            const existing = await store.getRepoGuild(repoName, message.guild.id);
-            if (!existing) {
-                await store.saveRepoGuild(repoName, message.guild.id, {
-                    categoryId: category.id,
-                    branches: { [selectedBranch]: null },
-                });
-            }
 
             // Auto-create GitHub webhook if WEBHOOK_URL is configured
             let webhookStatus = '';

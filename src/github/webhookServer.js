@@ -2,7 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const { webhookPort, webhookSecret } = require('../../config');
 const { handleGithubEvent } = require('./eventHandler');
-const store = require('./store');
+const { getGuildsForRepo } = require('./repoSetupModel');
 const { createBugFromExternal } = require('../bugs/bugManager');
 
 function startWebhookServer(client) {
@@ -28,7 +28,7 @@ function startWebhookServer(client) {
                 return res.status(400).json({ error: 'Missing required fields: repoName, title, platform, reporter' });
             }
 
-            const repoGuilds = await store.getRepoGuilds(repoName);
+            const repoGuilds = await getGuildsForRepo(repoName);
             if (!repoGuilds.length) {
                 return res.status(404).json({ error: 'No guilds are tracking this repository' });
             }

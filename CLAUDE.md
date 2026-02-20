@@ -24,9 +24,8 @@ Discord bot built with discord.js v14, using prefix commands, with music playbac
 - `src/music/ytdlp.js` — yt-dlp streaming (with android client for YouTube) and search
 - `src/music/guildSettingsModel.js` — Mongoose model for per-guild settings (volume)
 - MongoDB `guildsettings` collection — Persisted per-guild settings (volume)
-- `src/commands/github/` — repo, setgit, seegitinfo, cleargit, setrepo, setrepobranch, updaterepo, changegitbranch, changegitbranchselect, clearrepo, listrepos, clearallrepos
-- `src/github/` — webhookServer, eventHandler, channelManager, store, gitAuthModel, repoSetupModel
-- MongoDB `repos` collection — Persisted repo-to-guild/channel mappings (one doc per repo+guild pair)
+- `src/commands/github/` — setgit, seegitinfo, cleargit, setrepo, setrepobranch, updaterepo, changegitbranch, changegitbranchselect, clearrepo, listrepos, clearallrepos
+- `src/github/` — webhookServer, eventHandler, channelManager, gitAuthModel, repoSetupModel
 - MongoDB `gitauths` collection — GitHub PATs per user per server
 - MongoDB `reposetups` collection — File-mirror repo setups per server
 - MongoDB `bugs` collection — Bug reports per guild/repo
@@ -42,12 +41,10 @@ Create a file in `src/commands/<category>/` exporting:
 - `prefixExecute(message, args)` — Prefix command handler
 - `category` (optional) — String for help grouping
 
-## GitHub Repo Tracking
-- `!repo add owner/name` — Links a GitHub repo, creates a category + #main channel, shows webhook setup instructions
-- `!repo remove owner/name` — Unlinks a repo and cleans up channels
-- `!repo list` — Lists all tracked repos in the server
-- Same repo can be tracked in multiple servers — webhook events fan out to all linked guilds
-- GitHub webhook events (push, PR, issues, branch create/delete) are posted as embeds to per-branch channels
+## GitHub Repo Setup & Webhook Tracking
+- Repos set up via `!setrepo` are treated as tracked repos for both file mirroring and webhook event handling
+- Same repo can be set up in multiple servers — webhook events fan out to all linked guilds
+- GitHub webhook events (push, PR, issues, branch create/delete) are posted as embeds to channels under the repo's category
 - Webhook endpoint: `POST /webhook` on the configured port
 
 ## GitHub File Mirroring (API-based)
