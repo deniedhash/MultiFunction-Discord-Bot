@@ -1,8 +1,7 @@
 const { EmbedBuilder, ChannelType } = require('discord.js');
 const axios = require('axios');
-const store = require('./store');
 const { ensureBranchChannel, removeBranchChannel } = require('./channelManager');
-const { getRepoSetups } = require('./repoSetupModel');
+const { getRepoSetups, getGuildsForRepo } = require('./repoSetupModel');
 const { getGitAuths, decrypt } = require('./gitAuthModel');
 const { createBugFromExternal } = require('../bugs/bugManager');
 
@@ -10,32 +9,30 @@ async function handleGithubEvent(eventType, payload, client) {
     const repoFullName = payload.repository?.full_name;
     if (!repoFullName) return;
 
-    const repoGuilds = await store.getRepoGuilds(repoFullName);
+    const repoGuilds = await getGuildsForRepo(repoFullName);
     if (!repoGuilds.length) return;
 
     for (const repoConfig of repoGuilds) {
         const guild = client.guilds.cache.get(repoConfig.guildId);
         if (!guild) continue;
 
-        const branches = Object.fromEntries(repoConfig.branches);
-
         try {
             switch (eventType) {
                 case 'push':
-                    await handlePush(guild, { ...repoConfig, branches }, repoFullName, payload);
+                    await handlePush(guild, repoConfig, repoFullName, payload);
                     await autoSyncMirroredFiles(guild, repoFullName, payload);
                     break;
                 case 'pull_request':
-                    await handlePullRequest(guild, { ...repoConfig, branches }, payload);
+                    await handlePullRequest(guild, repoConfig, payload);
                     break;
                 case 'issues':
-                    await handleIssue(guild, { ...repoConfig, branches }, payload, client);
+                    await handleIssue(guild, repoConfig, payload, client);
                     break;
                 case 'create':
-                    await handleCreate(guild, { ...repoConfig, branches }, repoFullName, payload);
+                    await handleCreate(guild, repoConfig, repoFullName, payload);
                     break;
                 case 'delete':
-                    await handleDelete(guild, { ...repoConfig, branches }, repoFullName, payload);
+                    await handleDelete(guild, repoConfig, repoFullName, payload);
                     break;
             }
         } catch (err) {
@@ -49,7 +46,6 @@ async function handlePush(guild, repoConfig, repoFullName, payload) {
     if (!branch) return;
 
     const channel = await ensureBranchChannel(guild, repoConfig, branch);
-    await store.setBranch(repoFullName, guild.id, branch, channel.id);
 
     for (const commit of payload.commits || []) {
         const embed = new EmbedBuilder()
@@ -79,8 +75,13 @@ async function handlePullRequest(guild, repoConfig, payload) {
     const color = merged ? 0x8957e5 : action === 'opened' ? 0x2ea44f : 0xda3633;
 
     const targetBranch = pr.base?.ref || 'main';
-    const channelId = repoConfig.branches[targetBranch] || repoConfig.branches['main'];
-    const channel = guild.channels.cache.get(channelId);
+    const channel = guild.channels.cache.find(
+        c => c.parentId === repoConfig.categoryId &&
+             c.name === targetBranch.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').slice(0, 100) &&
+             c.type === ChannelType.GuildText
+    ) || guild.channels.cache.find(
+        c => c.parentId === repoConfig.categoryId && c.name === 'main' && c.type === ChannelType.GuildText
+    );
     if (!channel) return;
 
     const embed = new EmbedBuilder()
@@ -106,8 +107,9 @@ async function handleIssue(guild, repoConfig, payload, client) {
 
     const color = action === 'opened' ? 0x2ea44f : action === 'closed' ? 0xda3633 : 0xf0883e;
 
-    const channelId = repoConfig.branches['main'];
-    const channel = guild.channels.cache.get(channelId);
+    const channel = guild.channels.cache.find(
+        c => c.parentId === repoConfig.categoryId && c.name === 'main' && c.type === ChannelType.GuildText
+    );
     if (!channel) return;
 
     const embed = new EmbedBuilder()
@@ -149,7 +151,6 @@ async function handleCreate(guild, repoConfig, repoFullName, payload) {
 
     const branch = payload.ref;
     const channel = await ensureBranchChannel(guild, repoConfig, branch);
-    await store.setBranch(repoFullName, guild.id, branch, channel.id);
 
     const embed = new EmbedBuilder()
         .setColor(0x2ea44f)
@@ -168,7 +169,6 @@ async function handleDelete(guild, repoConfig, repoFullName, payload) {
 
     const branch = payload.ref;
     await removeBranchChannel(guild, repoConfig, branch);
-    await store.removeBranch(repoFullName, guild.id, branch);
 }
 
 async function autoSyncMirroredFiles(guild, repoFullName, payload) {

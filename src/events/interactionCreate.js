@@ -1,7 +1,7 @@
 const { Events, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const bugModel = require('../bugs/bugModel');
 const bugManager = require('../bugs/bugManager');
-const { getGuildRepos } = require('../github/store');
+const { getGuildRepoList } = require('../github/repoSetupModel');
 
 module.exports = {
     name: Events.InteractionCreate,
@@ -32,9 +32,9 @@ async function handleButton(interaction) {
     const id = interaction.customId;
 
     if (id === 'bug_add') {
-        const repos = await getGuildRepos(interaction.guild.id);
+        const repos = await getGuildRepoList(interaction.guild.id);
         if (!repos || repos.length === 0) {
-            return interaction.reply({ content: 'No GitHub repos are tracked in this server. Ask an admin to use `!repo add owner/name` first.', flags: 64 });
+            return interaction.reply({ content: 'No GitHub repos are set up in this server. Ask an admin to use `!setrepo` first.', flags: 64 });
         }
         return interaction.reply({
             content: 'Select a repository for this bug:',
