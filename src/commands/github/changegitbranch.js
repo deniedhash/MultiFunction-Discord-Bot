@@ -160,58 +160,63 @@ async function showBranchSelect(message, repoName, repos, token, existingReply) 
 
         try {
             const repoInfo = repos[repoName];
+            let fileCount = 0;
 
-            // Delete old file channels under the category (except git-updates)
-            const oldChannels = message.guild.channels.cache.filter(
-                c => c.parentId === repoInfo.categoryId
-                    && c.type === ChannelType.GuildText
-                    && c.name !== 'git-updates',
-            );
-            for (const [, channel] of oldChannels) {
-                try { await channel.delete(); } catch {}
-            }
+            // Only re-sync file channels if the repo was mirrored
+            if (repoInfo.mirrored) {
+                // Delete old file channels under the category (except git-updates)
+                const oldChannels = message.guild.channels.cache.filter(
+                    c => c.parentId === repoInfo.categoryId
+                        && c.type === ChannelType.GuildText
+                        && c.name !== 'git-updates',
+                );
+                for (const [, channel] of oldChannels) {
+                    try { await channel.delete(); } catch {}
+                }
 
-            // Fetch new branch file tree
-            const { data: tree } = await axios.get(
-                `https://api.github.com/repos/${repoName}/git/trees/${selectedBranch}`,
-                { headers: { Authorization: `token ${token}` }, params: { recursive: 1 } },
-            );
+                // Fetch new branch file tree
+                const { data: tree } = await axios.get(
+                    `https://api.github.com/repos/${repoName}/git/trees/${selectedBranch}`,
+                    { headers: { Authorization: `token ${token}` }, params: { recursive: 1 } },
+                );
 
-            const files = tree.tree.filter(f => f.type === 'blob').slice(0, MAX_FILES);
+                const files = tree.tree.filter(f => f.type === 'blob').slice(0, MAX_FILES);
+                fileCount = files.length;
 
-            // Create new channels with file contents
-            for (const file of files) {
-                const channelName = file.path
-                    .replace(/[^a-zA-Z0-9-]/g, '-')
-                    .replace(/-+/g, '-')
-                    .replace(/^-|-$/g, '')
-                    .toLowerCase()
-                    .slice(0, 100);
+                // Create new channels with file contents
+                for (const file of files) {
+                    const channelName = file.path
+                        .replace(/[^a-zA-Z0-9-]/g, '-')
+                        .replace(/-+/g, '-')
+                        .replace(/^-|-$/g, '')
+                        .toLowerCase()
+                        .slice(0, 100);
 
-                const channel = await message.guild.channels.create({
-                    name: channelName,
-                    type: ChannelType.GuildText,
-                    parent: repoInfo.categoryId,
-                });
+                    const channel = await message.guild.channels.create({
+                        name: channelName,
+                        type: ChannelType.GuildText,
+                        parent: repoInfo.categoryId,
+                    });
 
-                try {
-                    const { data: fileData } = await axios.get(
-                        `https://api.github.com/repos/${repoName}/contents/${file.path}`,
-                        {
-                            headers: { Authorization: `token ${token}` },
-                            params: { ref: selectedBranch },
-                        },
-                    );
+                    try {
+                        const { data: fileData } = await axios.get(
+                            `https://api.github.com/repos/${repoName}/contents/${file.path}`,
+                            {
+                                headers: { Authorization: `token ${token}` },
+                                params: { ref: selectedBranch },
+                            },
+                        );
 
-                    const content = Buffer.from(fileData.content || '', 'base64').toString('utf-8');
-                    const header = `**${file.path}** (branch: \`${selectedBranch}\`)\n`;
-                    const chunks = splitContent(content, 1900);
-                    await channel.send(header);
-                    for (const chunk of chunks) {
-                        await channel.send(`\`\`\`\n${chunk}\n\`\`\``);
+                        const content = Buffer.from(fileData.content || '', 'base64').toString('utf-8');
+                        const header = `**${file.path}** (branch: \`${selectedBranch}\`)\n`;
+                        const chunks = splitContent(content, 1900);
+                        await channel.send(header);
+                        for (const chunk of chunks) {
+                            await channel.send(`\`\`\`\n${chunk}\n\`\`\``);
+                        }
+                    } catch {
+                        await channel.send(`**${file.path}**\n*Could not fetch file contents (may be binary or too large).*`);
                     }
-                } catch {
-                    await channel.send(`**${file.path}**\n*Could not fetch file contents (may be binary or too large).*`);
                 }
             }
 
@@ -223,13 +228,14 @@ async function showBranchSelect(message, repoName, repos, token, existingReply) 
                 await saveRepoSetups(message.guild.id, freshRepos);
             }
 
+            const desc = repoInfo.mirrored
+                ? `**${repoName}** \u2192 \`${selectedBranch}\`\n${fileCount} file${fileCount === 1 ? '' : 's'} synced.`
+                : `**${repoName}** \u2192 \`${selectedBranch}\``;
+
             await reply.edit({
                 embeds: [new EmbedBuilder()
                     .setTitle('Branch Switched')
-                    .setDescription(
-                        `**${repoName}** → \`${selectedBranch}\`\n` +
-                        `${files.length} file${files.length === 1 ? '' : 's'} synced.`,
-                    )
+                    .setDescription(desc)
                     .setColor(0x57f287)],
                 components: [],
             });
