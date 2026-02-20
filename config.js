@@ -10,4 +10,5 @@ module.exports = {
     spotifyClientSecret: process.env.SPOTIFY_CLIENT_SECRET || '',
     encryptionKey: process.env.ENCRYPTION_KEY || '',
     webhookUrl: process.env.WEBHOOK_URL || '',
+    bugDeleteDelay: parseInt(process.env.BUG_DELETE_DELAY) || 86400,
 };

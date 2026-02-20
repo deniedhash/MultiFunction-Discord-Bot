@@ -2,12 +2,57 @@ const express = require('express');
 const crypto = require('crypto');
 const { webhookPort, webhookSecret } = require('../../config');
 const { handleGithubEvent } = require('./eventHandler');
+const store = require('./store');
+const { createBugFromExternal } = require('../bugs/bugManager');
 
 function startWebhookServer(client) {
     const app = express();
 
     app.get('/webhook', (req, res) => {
         res.json({ status: 'ok', message: 'Webhook server is running' });
+    });
+
+    // ── Bug creation API ──
+    app.post('/bugs', express.json(), async (req, res) => {
+        try {
+            if (webhookSecret && webhookSecret.length > 0) {
+                const auth = req.headers['authorization'];
+                if (!auth || auth !== `Bearer ${webhookSecret}`) {
+                    return res.status(401).json({ error: 'Unauthorized' });
+                }
+            }
+
+            const { repoName, title, description, steps, severity, platform, reporter } = req.body;
+
+            if (!repoName || !title || !platform || !reporter) {
+                return res.status(400).json({ error: 'Missing required fields: repoName, title, platform, reporter' });
+            }
+
+            const repoGuilds = await store.getRepoGuilds(repoName);
+            if (!repoGuilds.length) {
+                return res.status(404).json({ error: 'No guilds are tracking this repository' });
+            }
+
+            const results = [];
+            for (const repoConfig of repoGuilds) {
+                const bug = await createBugFromExternal(client, {
+                    guildId: repoConfig.guildId,
+                    repoName,
+                    title,
+                    description,
+                    steps: steps || '',
+                    severity: severity || 'normal',
+                    reporterPlatform: platform,
+                    reporterName: reporter,
+                });
+                if (bug) results.push({ guildId: repoConfig.guildId, bugId: bug._id.toString() });
+            }
+
+            res.status(201).json({ created: results });
+        } catch (err) {
+            console.error('Error creating bug via API:', err);
+            res.status(500).json({ error: 'Internal server error' });
+        }
     });
 
     app.post('/webhook', express.json(), (req, res) => {

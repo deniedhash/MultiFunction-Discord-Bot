@@ -15,13 +15,21 @@ Discord bot built with discord.js v14, using prefix commands, with music playbac
 - `index.js` — Entry point: creates Client, Player, loads handlers, logs in
 - `config.js` — Reads `.env` and exports token, prefix
 - `src/handlers/` — commandHandler, eventHandler, playerHandler
-- `src/commands/general/` — ping, help, userinfo, serverinfo, avatar
-- `src/commands/music/` — play, skip, stop, queue, nowplaying, pause, resume
+- `src/commands/general/` — ping, help, userinfo, serverinfo, avatar, note
+- `src/commands/music/` — play, skip, stop, queue, nowplaying, pause, resume, volume, loop, shuffle, seek
+- `src/commands/bugs/` — addbug
+- `src/bugs/bugManager.js` — Bug channel/embed helpers, lifecycle management (WIP, resolve, reopen, auto-cleanup)
+- `src/bugs/bugModel.js` — Mongoose model for bugs
+- `src/music/queue.js` — Queue management, loop modes, shuffle, seek
+- `src/music/ytdlp.js` — yt-dlp streaming (with android client for YouTube) and search
+- `src/music/guildSettingsModel.js` — Mongoose model for per-guild settings (volume)
+- MongoDB `guildsettings` collection — Persisted per-guild settings (volume)
 - `src/commands/github/` — repo, setgit, seegitinfo, cleargit, setrepo, setrepobranch, updaterepo, changegitbranch, changegitbranchselect, clearrepo, listrepos, clearallrepos
 - `src/github/` — webhookServer, eventHandler, channelManager, store, gitAuthModel, repoSetupModel
 - MongoDB `repos` collection — Persisted repo-to-guild/channel mappings (one doc per repo+guild pair)
 - MongoDB `gitauths` collection — GitHub PATs per user per server
 - MongoDB `reposetups` collection — File-mirror repo setups per server
+- MongoDB `bugs` collection — Bug reports per guild/repo
 - `src/events/` — ready, messageCreate
 
 ## Commands
