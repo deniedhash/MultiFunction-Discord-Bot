@@ -11,6 +11,20 @@ const deletionTimers = new Map();
 
 // ── Channel helpers ──
 
+function lockedCategoryOverwrites(guild) {
+    return [
+        {
+            id: guild.id,
+            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+            deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.AddReactions],
+        },
+        {
+            id: guild.members.me.id,
+            allow: [PermissionFlagsBits.SendMessages],
+        },
+    ];
+}
+
 async function ensureBugsCategory(guild) {
     const existing = guild.channels.cache.find(
         c => c.type === ChannelType.GuildCategory && c.name.toLowerCase() === 'bugs',
@@ -19,7 +33,12 @@ async function ensureBugsCategory(guild) {
         if (existing.position !== 0) await existing.setPosition(0);
         return existing;
     }
-    return guild.channels.create({ name: 'bugs', type: ChannelType.GuildCategory, position: 0 });
+    return guild.channels.create({
+        name: 'bugs',
+        type: ChannelType.GuildCategory,
+        position: 0,
+        permissionOverwrites: lockedCategoryOverwrites(guild),
+    });
 }
 
 async function ensureBugsCategoryForRepo(guild, repoName) {
@@ -32,7 +51,12 @@ async function ensureBugsCategoryForRepo(guild, repoName) {
         if (existing.position !== 0) await existing.setPosition(0);
         return existing;
     }
-    return guild.channels.create({ name: categoryName, type: ChannelType.GuildCategory, position: 0 });
+    return guild.channels.create({
+        name: categoryName,
+        type: ChannelType.GuildCategory,
+        position: 0,
+        permissionOverwrites: lockedCategoryOverwrites(guild),
+    });
 }
 
 async function ensureAddBugChannel(guild, category) {
