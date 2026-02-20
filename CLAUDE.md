@@ -52,7 +52,7 @@ Create a file in `src/commands/<category>/` exporting:
 - `!mirror` — Interactive: select menu for repo (skipped if single repo), mirrors files into channels (up to 50 files)
 - `!unmirror` — Interactive: removes mirrored file channels, keeps category and #git-updates
 - `!updaterepo` — Re-fetch and update mirrored file contents
-- `!changegitbranch` — Interactive: select menu for repo → select menu for branch, re-syncs files
+- `!changegitbranch` — Interactive: select menu for repo → select menu for branch, only re-syncs files if repo is mirrored
 - `!clearrepo [n]` — Remove a synced repo and its channels
 - `!listrepos` — List all synced repos
 - `!clearallrepos` — Remove all synced repos (with confirmation)
