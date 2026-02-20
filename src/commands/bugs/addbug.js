@@ -3,7 +3,7 @@ const {
     ensureBugsCategory, ensureAddBugChannel, ensureBugListChannel,
     buildAddBugEmbed, buildAddBugButton, backfillBugList,
 } = require('../../bugs/bugManager');
-const { getGuildRepos } = require('../../github/store');
+const { getGuildRepoList } = require('../../github/repoSetupModel');
 
 module.exports = {
     name: 'addbug',
@@ -15,9 +15,9 @@ module.exports = {
             return message.reply('You need the **Manage Channels** permission to use this command.');
         }
 
-        const repos = await getGuildRepos(message.guild.id);
+        const repos = await getGuildRepoList(message.guild.id);
         if (!repos || repos.length === 0) {
-            return message.reply('No GitHub repos are tracked in this server. Use `!repo add owner/name` first.');
+            return message.reply('No GitHub repos are set up in this server. Use `!setrepo` first.');
         }
 
         const guild = message.guild;
