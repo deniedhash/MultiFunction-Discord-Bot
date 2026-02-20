@@ -15,7 +15,7 @@ Discord bot built with discord.js v14, using prefix commands, with music playbac
 - `index.js` — Entry point: creates Client, Player, loads handlers, logs in
 - `config.js` — Reads `.env` and exports token, prefix
 - `src/handlers/` — commandHandler, eventHandler, playerHandler
-- `src/commands/general/` — ping, help, userinfo, serverinfo, avatar, note
+- `src/commands/general/` — ping, help, userinfo, serverinfo, avatar, note, uptime, cpu, ram
 - `src/commands/music/` — play, skip, stop, queue, nowplaying, pause, resume, volume, loop, shuffle, seek
 - `src/commands/bugs/` — addbug
 - `src/bugs/bugManager.js` — Bug channel/embed helpers, lifecycle management (WIP, resolve, reopen, auto-cleanup)
@@ -24,8 +24,8 @@ Discord bot built with discord.js v14, using prefix commands, with music playbac
 - `src/music/ytdlp.js` — yt-dlp streaming (with android client for YouTube) and search
 - `src/music/guildSettingsModel.js` — Mongoose model for per-guild settings (volume)
 - MongoDB `guildsettings` collection — Persisted per-guild settings (volume)
-- `src/commands/github/` — setgit, seegitinfo, cleargit, setrepo, setrepobranch, updaterepo, changegitbranch, changegitbranchselect, clearrepo, listrepos, clearallrepos
-- `src/github/` — webhookServer, eventHandler, channelManager, gitAuthModel, repoSetupModel
+- `src/commands/github/` — setgit, seegitinfo, cleargit, setrepo, mirror, unmirror, updaterepo, changegitbranch, clearrepo, listrepos, clearallrepos
+- `src/github/` — webhookServer, eventHandler, gitAuthModel, repoSetupModel
 - MongoDB `gitauths` collection — GitHub PATs per user per server
 - MongoDB `reposetups` collection — File-mirror repo setups per server
 - MongoDB `bugs` collection — Bug reports per guild/repo
@@ -42,22 +42,26 @@ Create a file in `src/commands/<category>/` exporting:
 - `category` (optional) — String for help grouping
 
 ## GitHub Repo Setup & Webhook Tracking
-- Repos set up via `!setrepo` are treated as tracked repos for both file mirroring and webhook event handling
+- `!setrepo` — Interactive: select menu for repo → select menu for branch → creates category + #git-updates channel + webhook
+- Repos set up via `!setrepo` are tracked for webhook events (push, PR, issues, branch create/delete)
+- All webhook events are posted as embeds to the `#git-updates` channel under the repo's category
 - Same repo can be set up in multiple servers — webhook events fan out to all linked guilds
-- GitHub webhook events (push, PR, issues, branch create/delete) are posted as embeds to channels under the repo's category
 - Webhook endpoint: `POST /webhook` on the configured port
 
 ## GitHub File Mirroring (API-based)
-- `!setgit <token>` — Save GitHub PAT for this server (auto-deletes message)
-- `!seegitinfo` — Show connected GitHub account info
-- `!cleargit` — Remove stored GitHub token
-- `!setrepo` → `!setrepo <n>` → `!setrepo_branch <n>` — Browse repos/branches, sync files to Discord channels (up to 50 files per repo)
-- `!updaterepo` — Re-fetch and update all synced file contents
-- `!changegitbranch` → `!changegitbranch_select <n>` — Switch branch on a synced repo
+- `!mirror` — Interactive: select menu for repo (skipped if single repo), mirrors files into channels (up to 50 files)
+- `!unmirror` — Interactive: removes mirrored file channels, keeps category and #git-updates
+- `!updaterepo` — Re-fetch and update mirrored file contents
+- `!changegitbranch` — Interactive: select menu for repo → select menu for branch, re-syncs files
 - `!clearrepo [n]` — Remove a synced repo and its channels
 - `!listrepos` — List all synced repos
 - `!clearallrepos` — Remove all synced repos (with confirmation)
-- Temp selection state stored on `client.tempRepoList`, `client.tempBranchSelect`, etc.
+- Auto-sync on push only runs for repos that have been mirrored
+
+## GitHub Authentication
+- `!setgit <token>` — Save GitHub PAT for this server (auto-deletes message)
+- `!seegitinfo` — Show connected GitHub account info
+- `!cleargit` — Remove stored GitHub token
 
 ## Environment Variables (.env)
 - `DISCORD_TOKEN` — Bot token
