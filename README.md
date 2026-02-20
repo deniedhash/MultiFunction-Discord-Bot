@@ -16,6 +16,10 @@ Stream music from YouTube, Spotify, and SoundCloud directly in voice channels.
 | `!resume` | Resume playback |
 | `!queue` | Show the current queue |
 | `!nowplaying` | Show the currently playing track |
+| `!volume [1-100]` | Show or set playback volume (persists per server) |
+| `!loop [track\|queue\|off]` | Loop current track, entire queue, or disable |
+| `!shuffle` | Randomize the order of tracks in the queue |
+| `!seek <M:SS\|seconds>` | Jump to a position in the current track |
 
 ### GitHub Webhook Notifications
 Receive real-time GitHub events (pushes, PRs, issues, branch activity) as Discord embeds via webhooks.
@@ -46,6 +50,21 @@ Authenticate with GitHub and mirror repository files directly into Discord chann
 
 > **Note:** Your GitHub PAT needs the `admin:repo_hook` permission to auto-create webhooks. Tokens are encrypted with AES-256-GCM before being stored in the database.
 
+### Bug Tracking
+Integrated bug tracking tied to your GitHub repos. Bugs are reported via a button/modal in a dedicated `#add-bug` channel, tracked in `#bug-list`, and each bug gets its own channel under a per-repo category.
+
+| Command | Description |
+|---------|-------------|
+| `!addbug` | Set up bug tracking channels (requires Manage Channels permission) |
+
+**Features:**
+- Report bugs via button + modal (title, description, steps, severity)
+- Per-repo bug categories with individual bug channels
+- Bug lifecycle: Open → WIP → Resolved (with reopen support)
+- Bug updates and history replay
+- Auto-cleanup of resolved bug channels
+- External bug creation via API and GitHub Issues integration
+
 ### General
 | Command | Description |
 |---------|-------------|
@@ -55,6 +74,7 @@ Authenticate with GitHub and mirror repository files directly into Discord chann
 | `!serverinfo` | Show server information |
 | `!avatar [@user]` | Show a user's avatar |
 | `!invite` | Get the bot's invite link |
+| `!note <text>` | DM yourself a private note (message is deleted from channel) |
 
 ## Setup
 
@@ -63,6 +83,7 @@ Authenticate with GitHub and mirror repository files directly into Discord chann
 - [pnpm](https://pnpm.io/)
 - [MongoDB](https://www.mongodb.com/) instance
 - [FFmpeg](https://ffmpeg.org/) (for music playback)
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) (for YouTube/SoundCloud audio streaming)
 - A [Discord bot token](https://discord.com/developers/applications)
 
 ### Installation
@@ -151,8 +172,9 @@ docker run -d --env-file .env --link mongo:mongo \
 │   │   ├── eventHandler.js           # Loads Discord events
 │   │   └── playerHandler.js          # Music player events
 │   ├── commands/
-│   │   ├── general/                  # ping, help, userinfo, serverinfo, avatar, invite
-│   │   ├── music/                    # play, skip, stop, queue, nowplaying, pause, resume
+│   │   ├── general/                  # ping, help, userinfo, serverinfo, avatar, invite, note
+│   │   ├── music/                    # play, skip, stop, queue, nowplaying, pause, resume, volume, loop, shuffle, seek
+│   │   ├── bugs/                     # addbug
 │   │   └── github/                   # repo, setgit, seegitinfo, setrepo, etc.
 │   ├── events/
 │   │   ├── ready.js
@@ -164,6 +186,13 @@ docker run -d --env-file .env --link mongo:mongo \
 │       ├── store.js                  # Mongoose model for webhook repo tracking
 │       ├── gitAuthModel.js           # Mongoose model for GitHub PATs
 │       └── repoSetupModel.js         # Mongoose model for file-mirror setups
+│   ├── bugs/
+│   │   ├── bugManager.js             # Bug channel/embed helpers, lifecycle management
+│   │   └── bugModel.js               # Mongoose model for bugs
+│   └── music/
+│       ├── queue.js                   # Queue management, loop, shuffle, seek
+│       ├── ytdlp.js                   # yt-dlp streaming and search
+│       └── guildSettingsModel.js      # Mongoose model for per-guild settings (volume)
 ```
 
 ## Adding a New Command

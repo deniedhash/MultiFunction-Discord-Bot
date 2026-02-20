@@ -24,8 +24,8 @@ function startWebhookServer(client) {
 
             const { repoName, title, description, steps, severity, platform, reporter } = req.body;
 
-            if (!repoName || !title || !description || !platform || !reporter) {
-                return res.status(400).json({ error: 'Missing required fields: repoName, title, description, platform, reporter' });
+            if (!repoName || !title || !platform || !reporter) {
+                return res.status(400).json({ error: 'Missing required fields: repoName, title, platform, reporter' });
             }
 
             const repoGuilds = await store.getRepoGuilds(repoName);
