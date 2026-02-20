@@ -1,6 +1,6 @@
 # MultiFunction Discord Bot
 
-A feature-rich Discord bot built with discord.js v14 featuring music playback, GitHub webhook notifications, and API-based GitHub file mirroring.
+A feature-rich Discord bot built with discord.js v14 featuring music playback, GitHub integration (file mirroring + webhook notifications), and bug tracking.
 
 ## Features
 
@@ -21,17 +21,8 @@ Stream music from YouTube, Spotify, and SoundCloud directly in voice channels.
 | `!shuffle` | Randomize the order of tracks in the queue |
 | `!seek <M:SS\|seconds>` | Jump to a position in the current track |
 
-### GitHub Webhook Notifications
-Receive real-time GitHub events (pushes, PRs, issues, branch activity) as Discord embeds via webhooks.
-
-| Command | Description |
-|---------|-------------|
-| `!repo add owner/name` | Track a repo — creates a category + channel, shows webhook setup instructions |
-| `!repo remove owner/name` | Stop tracking a repo and clean up channels |
-| `!repo list` | List all tracked repos in the server |
-
-### GitHub File Mirroring
-Authenticate with GitHub and mirror repository files directly into Discord channels — one channel per file, with file contents displayed as code blocks. File channels **auto-update on push** via automatically created GitHub webhooks.
+### GitHub Integration
+Connect GitHub repos to your Discord server. Each synced repo gets a category with a `#git-updates` channel for real-time webhook events (pushes, PRs, issues, branch activity). Optionally mirror repo files into individual channels with `!mirror`.
 
 | Command | Description |
 |---------|-------------|
@@ -40,8 +31,10 @@ Authenticate with GitHub and mirror repository files directly into Discord chann
 | `!cleargit` | Remove your stored GitHub token |
 | `!setrepo` | List your GitHub repos |
 | `!setrepo <n>` | Select a repo and view its branches |
-| `!setrepo_branch <n>` | Sync a branch — creates channels, mirrors files, and auto-creates GitHub webhook |
-| `!updaterepo` | Manually re-fetch and update all synced file contents |
+| `!setrepo_branch <n>` | Set up repo tracking — creates category + #git-updates, auto-creates GitHub webhook |
+| `!mirror` | List synced repos available for file mirroring |
+| `!mirror <n>` | Mirror a repo's files into channels (up to 50 files) |
+| `!updaterepo` | Manually re-fetch and update all mirrored file contents |
 | `!changegitbranch` | Switch branch on a synced repo |
 | `!changegitbranch_select <n>` | Confirm branch switch and re-sync files |
 | `!clearrepo [n]` | Remove a synced repo and its channels |
@@ -75,6 +68,9 @@ Integrated bug tracking tied to your GitHub repos. Bugs are reported via a butto
 | `!avatar [@user]` | Show a user's avatar |
 | `!invite` | Get the bot's invite link |
 | `!note <text>` | DM yourself a private note (message is deleted from channel) |
+| `!uptime` | Show how long the bot has been running |
+| `!cpu` | Show CPU usage and info |
+| `!ram` | Show memory usage (bot + system) |
 
 ## Setup
 
@@ -172,20 +168,18 @@ docker run -d --env-file .env --link mongo:mongo \
 │   │   ├── eventHandler.js           # Loads Discord events
 │   │   └── playerHandler.js          # Music player events
 │   ├── commands/
-│   │   ├── general/                  # ping, help, userinfo, serverinfo, avatar, invite, note
+│   │   ├── general/                  # ping, help, userinfo, serverinfo, avatar, invite, note, uptime, cpu, ram
 │   │   ├── music/                    # play, skip, stop, queue, nowplaying, pause, resume, volume, loop, shuffle, seek
 │   │   ├── bugs/                     # addbug
-│   │   └── github/                   # repo, setgit, seegitinfo, setrepo, etc.
+│   │   └── github/                   # setgit, seegitinfo, setrepo, etc.
 │   ├── events/
 │   │   ├── ready.js
 │   │   └── messageCreate.js
 │   └── github/
 │       ├── webhookServer.js          # Express server for GitHub webhooks
 │       ├── eventHandler.js           # Processes webhook events into embeds
-│       ├── channelManager.js         # Creates/manages repo channels
-│       ├── store.js                  # Mongoose model for webhook repo tracking
 │       ├── gitAuthModel.js           # Mongoose model for GitHub PATs
-│       └── repoSetupModel.js         # Mongoose model for file-mirror setups
+│       └── repoSetupModel.js         # Mongoose model for repo setups and tracking
 │   ├── bugs/
 │   │   ├── bugManager.js             # Bug channel/embed helpers, lifecycle management
 │   │   └── bugModel.js               # Mongoose model for bugs
