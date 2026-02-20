@@ -7,9 +7,23 @@ const {
     entersState,
     StreamType,
 } = require('@discordjs/voice');
+const { EmbedBuilder } = require('discord.js');
 const ytdlp = require('./ytdlp');
 const spotify = require('./spotify');
 const { getVolume } = require('./guildSettingsModel');
+
+function formatDuration(seconds) {
+    if (!seconds || isNaN(seconds)) return 'Unknown';
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+const sourceLabel = {
+    youtube: 'YouTube',
+    soundcloud: 'SoundCloud',
+    spotify: 'Spotify',
+};
 
 const queues = new Map();
 
@@ -126,7 +140,18 @@ class GuildQueue {
             resource.volume.setVolume(this.volume);
             this.resource = resource;
             this.player.play(resource);
-            this.textChannel.send(`Now playing: **${track.title}** by **${track.author}**`).catch(() => {});
+            const npTitle = track.url ? `[${track.title}](${track.url})` : track.title;
+            const npEmbed = new EmbedBuilder()
+                .setTitle('Now Playing')
+                .setDescription(npTitle)
+                .setThumbnail(track.thumbnail || null)
+                .setColor(0x5865f2)
+                .addFields(
+                    { name: 'Author', value: track.author || 'Unknown', inline: true },
+                    { name: 'Duration', value: formatDuration(track.duration), inline: true },
+                    { name: 'Source', value: sourceLabel[track.source] || track.source || 'Unknown', inline: true },
+                );
+            this.textChannel.send({ embeds: [npEmbed] }).catch(() => {});
         } catch (error) {
             console.error('Play error:', error.message);
             this.textChannel.send(`Failed to play **${track.title}**.`).catch(() => {});

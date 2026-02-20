@@ -15,8 +15,11 @@ async function ensureBugsCategory(guild) {
     const existing = guild.channels.cache.find(
         c => c.type === ChannelType.GuildCategory && c.name.toLowerCase() === 'bugs',
     );
-    if (existing) return existing;
-    return guild.channels.create({ name: 'bugs', type: ChannelType.GuildCategory });
+    if (existing) {
+        if (existing.position !== 0) await existing.setPosition(0);
+        return existing;
+    }
+    return guild.channels.create({ name: 'bugs', type: ChannelType.GuildCategory, position: 0 });
 }
 
 async function ensureBugsCategoryForRepo(guild, repoName) {
@@ -25,8 +28,11 @@ async function ensureBugsCategoryForRepo(guild, repoName) {
     const existing = guild.channels.cache.find(
         c => c.type === ChannelType.GuildCategory && c.name.toLowerCase() === categoryName.toLowerCase(),
     );
-    if (existing) return existing;
-    return guild.channels.create({ name: categoryName, type: ChannelType.GuildCategory });
+    if (existing) {
+        if (existing.position !== 0) await existing.setPosition(0);
+        return existing;
+    }
+    return guild.channels.create({ name: categoryName, type: ChannelType.GuildCategory, position: 0 });
 }
 
 async function ensureAddBugChannel(guild, category) {
@@ -386,7 +392,13 @@ async function backfillBugList(client, guildId) {
     const guild = client.guilds.cache.get(guildId);
     if (!guild) return;
 
-    const allBugs = await bugModel.getBugsByGuild(guildId);
+    // Only backfill bugs for repos that are currently set up
+    const { getGuildRepoList } = require('../github/repoSetupModel');
+    const activeRepos = await getGuildRepoList(guildId);
+    const activeRepoNames = new Set(activeRepos.map(r => r.repoName));
+
+    const allBugs = (await bugModel.getBugsByGuild(guildId))
+        .filter(bug => activeRepoNames.has(bug.repoName));
 
     // 1. Create channels for unresolved bugs that don't have one
     for (const bug of allBugs) {

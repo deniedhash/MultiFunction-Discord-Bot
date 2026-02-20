@@ -17,7 +17,8 @@ module.exports = {
 
         const list = repoNames.map(name => {
             const info = repos[name];
-            return `**${name}**\n  Branch: \`${info.branch}\` | Added by: <@${info.addedBy}> | <t:${Math.floor(new Date(info.createdAt).getTime() / 1000)}:R>`;
+            const mirrored = info.mirrored ? 'Mirrored' : 'Not mirrored';
+            return `**${name}**\n  Branch: \`${info.branch}\` | ${mirrored} | Added by: <@${info.addedBy}> | <t:${Math.floor(new Date(info.createdAt).getTime() / 1000)}:R>`;
         }).join('\n\n');
 
         const embed = new EmbedBuilder()
