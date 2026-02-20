@@ -29,16 +29,13 @@ Connect GitHub repos to your Discord server. Each synced repo gets a category wi
 | `!setgit <token>` | Save your GitHub PAT (message auto-deleted for security) |
 | `!seegitinfo` | Show your connected GitHub account info |
 | `!cleargit` | Remove your stored GitHub token |
-| `!setrepo` | List your GitHub repos |
-| `!setrepo <n>` | Select a repo and view its branches |
-| `!setrepo_branch <n>` | Set up repo tracking — creates category + #git-updates, auto-creates GitHub webhook |
-| `!mirror` | List synced repos available for file mirroring |
-| `!mirror <n>` | Mirror a repo's files into channels (up to 50 files) |
+| `!setrepo` | Interactive setup — select repo → select branch → creates category + #git-updates + webhook |
+| `!mirror` | Interactive — select a synced repo and mirror its files into channels (up to 50 files) |
+| `!unmirror` | Interactive — remove mirrored file channels (keeps category and #git-updates) |
 | `!updaterepo` | Manually re-fetch and update all mirrored file contents |
-| `!changegitbranch` | Switch branch on a synced repo |
-| `!changegitbranch_select <n>` | Confirm branch switch and re-sync files |
+| `!changegitbranch` | Interactive — select repo → select branch, re-syncs files if mirrored |
+| `!listrepos` | List all synced repos with branch, mirror status, and details |
 | `!clearrepo [n]` | Remove a synced repo and its channels |
-| `!listrepos` | List all synced repos with details |
 | `!clearallrepos` | Remove all synced repos (with confirmation) |
 
 > **Note:** Your GitHub PAT needs the `admin:repo_hook` permission to auto-create webhooks. Tokens are encrypted with AES-256-GCM before being stored in the database.
@@ -61,7 +58,7 @@ Integrated bug tracking tied to your GitHub repos. Bugs are reported via a butto
 ### General
 | Command | Description |
 |---------|-------------|
-| `!help` | List all available commands |
+| `!help` | Interactive command list with category dropdown |
 | `!ping` | Check bot latency |
 | `!userinfo [@user]` | Show user information |
 | `!serverinfo` | Show server information |
@@ -171,7 +168,7 @@ docker run -d --env-file .env --link mongo:mongo \
 │   │   ├── general/                  # ping, help, userinfo, serverinfo, avatar, invite, note, uptime, cpu, ram
 │   │   ├── music/                    # play, skip, stop, queue, nowplaying, pause, resume, volume, loop, shuffle, seek
 │   │   ├── bugs/                     # addbug
-│   │   └── github/                   # setgit, seegitinfo, setrepo, etc.
+│   │   └── github/                   # setgit, seegitinfo, setrepo, mirror, unmirror, changegitbranch, etc.
 │   ├── events/
 │   │   ├── ready.js
 │   │   └── messageCreate.js
