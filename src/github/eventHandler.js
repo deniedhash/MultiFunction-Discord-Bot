@@ -1,9 +1,14 @@
 const { EmbedBuilder, ChannelType } = require('discord.js');
 const axios = require('axios');
-const { ensureBranchChannel, removeBranchChannel } = require('./channelManager');
 const { getRepoSetups, getGuildsForRepo } = require('./repoSetupModel');
 const { getGitAuths, decrypt } = require('./gitAuthModel');
 const { createBugFromExternal } = require('../bugs/bugManager');
+
+function getUpdatesChannel(guild, repoConfig) {
+    return guild.channels.cache.find(
+        c => c.parentId === repoConfig.categoryId && c.name === 'git-updates' && c.type === ChannelType.GuildText
+    );
+}
 
 async function handleGithubEvent(eventType, payload, client) {
     const repoFullName = payload.repository?.full_name;
@@ -29,10 +34,10 @@ async function handleGithubEvent(eventType, payload, client) {
                     await handleIssue(guild, repoConfig, payload, client);
                     break;
                 case 'create':
-                    await handleCreate(guild, repoConfig, repoFullName, payload);
+                    await handleCreate(guild, repoConfig, payload);
                     break;
                 case 'delete':
-                    await handleDelete(guild, repoConfig, repoFullName, payload);
+                    await handleDelete(guild, repoConfig, payload);
                     break;
             }
         } catch (err) {
@@ -45,7 +50,8 @@ async function handlePush(guild, repoConfig, repoFullName, payload) {
     const branch = payload.ref?.replace('refs/heads/', '');
     if (!branch) return;
 
-    const channel = await ensureBranchChannel(guild, repoConfig, branch);
+    const channel = getUpdatesChannel(guild, repoConfig);
+    if (!channel) return;
 
     for (const commit of payload.commits || []) {
         const embed = new EmbedBuilder()
@@ -74,14 +80,7 @@ async function handlePullRequest(guild, repoConfig, payload) {
     const label = merged ? 'merged' : action;
     const color = merged ? 0x8957e5 : action === 'opened' ? 0x2ea44f : 0xda3633;
 
-    const targetBranch = pr.base?.ref || 'main';
-    const channel = guild.channels.cache.find(
-        c => c.parentId === repoConfig.categoryId &&
-             c.name === targetBranch.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').slice(0, 100) &&
-             c.type === ChannelType.GuildText
-    ) || guild.channels.cache.find(
-        c => c.parentId === repoConfig.categoryId && c.name === 'main' && c.type === ChannelType.GuildText
-    );
+    const channel = getUpdatesChannel(guild, repoConfig);
     if (!channel) return;
 
     const embed = new EmbedBuilder()
@@ -107,9 +106,7 @@ async function handleIssue(guild, repoConfig, payload, client) {
 
     const color = action === 'opened' ? 0x2ea44f : action === 'closed' ? 0xda3633 : 0xf0883e;
 
-    const channel = guild.channels.cache.find(
-        c => c.parentId === repoConfig.categoryId && c.name === 'main' && c.type === ChannelType.GuildText
-    );
+    const channel = getUpdatesChannel(guild, repoConfig);
     if (!channel) return;
 
     const embed = new EmbedBuilder()
@@ -146,15 +143,15 @@ async function handleIssue(guild, repoConfig, payload, client) {
     }
 }
 
-async function handleCreate(guild, repoConfig, repoFullName, payload) {
+async function handleCreate(guild, repoConfig, payload) {
     if (payload.ref_type !== 'branch') return;
 
-    const branch = payload.ref;
-    const channel = await ensureBranchChannel(guild, repoConfig, branch);
+    const channel = getUpdatesChannel(guild, repoConfig);
+    if (!channel) return;
 
     const embed = new EmbedBuilder()
         .setColor(0x2ea44f)
-        .setTitle(`Branch created: ${branch}`)
+        .setTitle(`Branch created: ${payload.ref}`)
         .setAuthor({
             name: payload.sender?.login || 'Unknown',
             iconURL: payload.sender?.avatar_url,
@@ -164,11 +161,22 @@ async function handleCreate(guild, repoConfig, repoFullName, payload) {
     await channel.send({ embeds: [embed] });
 }
 
-async function handleDelete(guild, repoConfig, repoFullName, payload) {
+async function handleDelete(guild, repoConfig, payload) {
     if (payload.ref_type !== 'branch') return;
 
-    const branch = payload.ref;
-    await removeBranchChannel(guild, repoConfig, branch);
+    const channel = getUpdatesChannel(guild, repoConfig);
+    if (!channel) return;
+
+    const embed = new EmbedBuilder()
+        .setColor(0xda3633)
+        .setTitle(`Branch deleted: ${payload.ref}`)
+        .setAuthor({
+            name: payload.sender?.login || 'Unknown',
+            iconURL: payload.sender?.avatar_url,
+        })
+        .setTimestamp();
+
+    await channel.send({ embeds: [embed] });
 }
 
 async function autoSyncMirroredFiles(guild, repoFullName, payload) {
@@ -180,7 +188,7 @@ async function autoSyncMirroredFiles(guild, repoFullName, payload) {
     const repoInfo = repos[repoFullName];
 
     // Only sync if this repo+branch is mirrored
-    if (!repoInfo || repoInfo.branch !== branch) return;
+    if (!repoInfo || repoInfo.branch !== branch || !repoInfo.mirrored) return;
 
     // Get the token from whoever added the repo
     const authDoc = await getGitAuths(guild.id);
