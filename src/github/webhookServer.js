@@ -4,6 +4,7 @@ const { webhookPort, webhookSecret } = require('../../config');
 const { handleGithubEvent } = require('./eventHandler');
 const { getGuildsForRepo } = require('./repoSetupModel');
 const { createBugFromExternal } = require('../bugs/bugManager');
+const Webhook = require('./webhookModel'); // Import the Webhook model
 
 function startWebhookServer(client) {
     const app = express();
@@ -83,12 +84,99 @@ function startWebhookServer(client) {
         handleGithubEvent(eventType, req.body, client).catch(err => {
             console.error('Error handling GitHub event:', err);
         });
+
+        saveWebhookPayload(eventType, req.body);
     });
 
     const port = webhookPort || 3000;
     app.listen(port, '0.0.0.0', () => {
         console.log(`GitHub webhook server listening on port ${port}`);
     });
+}
+
+async function saveWebhookPayload(eventType, payload) {
+    try {
+        const webhookData = {
+            eventType: eventType,
+            rawPayload: payload,
+        };
+
+        if (payload?.repository) {
+            webhookData.repository = {
+                name: payload.repository.name,
+                owner:
+                    payload.repository.owner?.name ||
+                    payload.repository.owner?.login ||
+                    (typeof payload.repository.owner === 'string' ? payload.repository.owner : undefined),
+                url: payload.repository.html_url || payload.repository.url,
+            };
+        }
+
+        if (payload?.pusher) {
+            webhookData.pusher = {
+                name: payload.pusher.name,
+                email: payload.pusher.email,
+            };
+        }
+
+        if (payload.ref) webhookData.ref = payload.ref;
+        if (payload.before) webhookData.before = payload.before;
+        if (payload.after) webhookData.after = payload.after;
+        if (payload.compare) webhookData.compare = payload.compare;
+
+        if (Array.isArray(payload?.commits)) {
+            webhookData.commits = payload.commits
+                .filter(commit => commit && typeof commit === 'object')
+                .map(commit => ({
+                    id: commit.id,
+                    message: commit.message,
+                    timestamp: commit.timestamp,
+                    url: commit.url,
+                    author: {
+                        name: commit.author?.name,
+                        email: commit.author?.email,
+                        username: commit.author?.username,
+                    },
+                    committer: {
+                        name: commit.committer?.name,
+                        email: commit.committer?.email,
+                        username: commit.committer?.username,
+                    },
+                    added: Array.isArray(commit.added) ? commit.added : [],
+                    removed: Array.isArray(commit.removed) ? commit.removed : [],
+                    modified: Array.isArray(commit.modified) ? commit.modified : [],
+                }));
+        }
+
+        if (payload?.head_commit && typeof payload.head_commit === 'object') {
+            webhookData.head_commit = {
+                id: payload.head_commit.id,
+                message: payload.head_commit.message,
+                timestamp: payload.head_commit.timestamp,
+                url: payload.head_commit.url,
+                author: {
+                    name: payload.head_commit.author?.name,
+                    email: payload.head_commit.author?.email,
+                    username: payload.head_commit.author?.username,
+                },
+                committer: {
+                    name: payload.head_commit.committer?.name,
+                    email: payload.head_commit.committer?.email,
+                    username: payload.head_commit.committer?.username,
+                },
+                added: Array.isArray(payload.head_commit.added) ? payload.head_commit.added : [],
+                removed: Array.isArray(payload.head_commit.removed) ? payload.head_commit.removed : [],
+                modified: Array.isArray(payload.head_commit.modified) ? payload.head_commit.modified : [],
+            };
+        }
+
+        const newWebhook = new Webhook(webhookData);
+        await newWebhook.save();
+        console.log(`Webhook payload for event type "${eventType}" saved to database.`);
+    } catch (error) {
+        console.error('Failed to save webhook payload:', error);
+        // Do not re-throw, as this function should not block the main webhook processing
+    }
 }
 
 module.exports = { startWebhookServer };
