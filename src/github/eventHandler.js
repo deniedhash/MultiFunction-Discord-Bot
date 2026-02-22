@@ -4,6 +4,7 @@ const { getRepoSetups, getGuildsForRepo } = require("./repoSetupModel");
 const { getGitAuths, decrypt } = require("./gitAuthModel");
 const { createBugFromExternal } = require("../bugs/bugManager");
 
+//test
 function getUpdatesChannel(guild, repoConfig) {
   return guild.channels.cache.find(
     (c) =>
