@@ -4,6 +4,7 @@ const { webhookPort, webhookSecret } = require('../../config');
 const { handleGithubEvent } = require('./eventHandler');
 const { getGuildsForRepo } = require('./repoSetupModel');
 const { createBugFromExternal } = require('../bugs/bugManager');
+const { createTodoFromExternal } = require('../todos/todoManager');
 const Webhook = require('./webhookModel'); // Import the Webhook model
 
 function startWebhookServer(client) {
@@ -52,6 +53,50 @@ function startWebhookServer(client) {
             res.status(201).json({ created: results });
         } catch (err) {
             console.error('Error creating bug via API:', err);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    });
+
+    // ── TODO creation API ──
+    app.post('/todos', express.json(), async (req, res) => {
+        try {
+            if (webhookSecret && webhookSecret.length > 0) {
+                const auth = req.headers['authorization'];
+                if (!auth || auth !== `Bearer ${webhookSecret}`) {
+                    return res.status(401).json({ error: 'Unauthorized' });
+                }
+            }
+
+            const { repoName, title, description, priority, platform, reporter, dueDate, tags } = req.body;
+
+            if (!repoName || !title || !platform || !reporter) {
+                return res.status(400).json({ error: 'Missing required fields: repoName, title, platform, reporter' });
+            }
+
+            const repoGuilds = await getGuildsForRepo(repoName);
+            if (!repoGuilds.length) {
+                return res.status(404).json({ error: 'No guilds are tracking this repository' });
+            }
+
+            const results = [];
+            for (const repoConfig of repoGuilds) {
+                const todo = await createTodoFromExternal(client, {
+                    guildId: repoConfig.guildId,
+                    repoName,
+                    title,
+                    description,
+                    priority: priority || 'medium',
+                    creatorPlatform: platform,
+                    creatorName: reporter,
+                    dueDate: dueDate || null,
+                    tags: Array.isArray(tags) ? tags : [],
+                });
+                if (todo) results.push({ guildId: repoConfig.guildId, todoId: todo._id.toString() });
+            }
+
+            res.status(201).json({ created: results });
+        } catch (err) {
+            console.error('Error creating todo via API:', err);
             res.status(500).json({ error: 'Internal server error' });
         }
     });
