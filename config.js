@@ -11,4 +11,5 @@ module.exports = {
     encryptionKey: process.env.ENCRYPTION_KEY || '',
     webhookUrl: process.env.WEBHOOK_URL || '',
     bugDeleteDelay: parseInt(process.env.BUG_DELETE_DELAY) || 86400,
+    featureDeleteDelay: parseInt(process.env.FEATURE_DELETE_DELAY) || 86400,
 };

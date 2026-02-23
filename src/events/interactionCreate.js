@@ -3,6 +3,8 @@ const bugModel = require('../bugs/bugModel');
 const bugManager = require('../bugs/bugManager');
 const todoModel = require('../todos/todoModel');
 const todoManager = require('../todos/todoManager');
+const featureModel = require('../features/featureModel');
+const featureManager = require('../features/featureManager');
 const { getGuildRepoList } = require('../github/repoSetupModel');
 
 module.exports = {
@@ -54,6 +56,15 @@ async function handleButton(interaction) {
         });
     }
 
+    if (id === 'feature_add') {
+        const repos = await getGuildRepoList(interaction.guild.id);
+        return interaction.reply({
+            content: 'Select a repository for this Feature (or choose General):',
+            components: [featureManager.buildRepoSelectMenu(repos || [])],
+            flags: 64,
+        });
+    }
+
     if (id.startsWith('bug_wip_')) {
         return handleWip(interaction, id.replace('bug_wip_', ''));
     }
@@ -87,6 +98,27 @@ async function handleButton(interaction) {
     if (id.startsWith('todo_reopen_')) {
         return handleTodoReopen(interaction, id.replace('todo_reopen_', ''));
     }
+
+    if (id.startsWith('feature_wip_')) {
+        return handleFeatureWip(interaction, id.replace('feature_wip_', ''));
+    }
+
+    if (id.startsWith('feature_update_')) {
+        const featureId = id.replace('feature_update_', '');
+        return interaction.showModal(featureManager.buildUpdateModal(featureId));
+    }
+
+    if (id.startsWith('feature_complete_')) {
+        return handleFeatureComplete(interaction, id.replace('feature_complete_', ''));
+    }
+
+    if (id.startsWith('feature_reject_')) {
+        return handleFeatureReject(interaction, id.replace('feature_reject_', ''));
+    }
+
+    if (id.startsWith('feature_reopen_')) {
+        return handleFeatureReopen(interaction, id.replace('feature_reopen_', ''));
+    }
 }
 
 async function handleSelectMenu(interaction) {
@@ -100,6 +132,11 @@ async function handleSelectMenu(interaction) {
     if (id === 'todo_select_repo') {
         const repoName = interaction.values[0];
         return interaction.showModal(todoManager.buildAddTodoModal(repoName));
+    }
+
+    if (id === 'feature_select_repo') {
+        const repoName = interaction.values[0];
+        return interaction.showModal(featureManager.buildAddFeatureModal(repoName));
     }
 }
 
@@ -122,6 +159,15 @@ async function handleModal(interaction) {
 
     if (id.startsWith('todo_modal_update_')) {
         return handleTodoUpdate(interaction, id.replace('todo_modal_update_', ''));
+    }
+
+    if (id.startsWith('feature_modal_add:')) {
+        const repoName = id.split(':').slice(1).join(':');
+        return handleFeatureCreate(interaction, repoName);
+    }
+
+    if (id.startsWith('feature_modal_update_')) {
+        return handleFeatureUpdate(interaction, id.replace('feature_modal_update_', ''));
     }
 }
 
@@ -222,6 +268,67 @@ async function handleTodoCreate(interaction, repoName) {
     await interaction.editReply({ content: `TODO added! See ${channel}.` });
 }
 
+// ── Feature creation ──
+
+async function handleFeatureCreate(interaction, repoName) {
+    await interaction.deferReply({ flags: 64 });
+
+    const title = interaction.fields.getTextInputValue('feature_title');
+    const description = interaction.fields.getTextInputValue('feature_description') || '';
+    const rawPriority = (interaction.fields.getTextInputValue('feature_priority') || 'medium').toLowerCase().trim();
+    const priority = ['low', 'medium', 'high'].includes(rawPriority) ? rawPriority : 'medium';
+    const rawDueDate = (interaction.fields.getTextInputValue('feature_due_date') || '').trim();
+    let dueDate = null;
+    if (rawDueDate) {
+        const parsed = new Date(rawDueDate);
+        if (!Number.isNaN(parsed.getTime())) {
+            dueDate = parsed;
+        }
+    }
+    const tags = (interaction.fields.getTextInputValue('feature_tags') || '')
+        .split(',')
+        .map(tag => tag.trim())
+        .filter(tag => tag.length > 0);
+
+    const guild = interaction.guild;
+    const isGeneral = repoName === 'general';
+    const actualRepoName = isGeneral ? null : repoName;
+    const repoList = await getGuildRepoList(guild.id);
+    const repo = repoList.find(r => r.repoName === actualRepoName);
+    const repositoryId = repo ? repo._id.toString() : null; // Assuming repoList items have _id
+
+    const feature = await featureModel.createFeature({
+        guildId: guild.id,
+        repositoryId: repositoryId,
+        repositoryName: actualRepoName,
+        title,
+        description,
+        priority,
+        dueDate,
+        tags,
+        createdBy: interaction.user.id,
+    });
+
+    const featureId = feature._id.toString();
+
+    const category = actualRepoName
+        ? await featureManager.ensureFeaturesCategoryForRepo(guild, actualRepoName)
+        : await featureManager.ensureFeaturesCategoryGeneral(guild);
+    const channel = await featureManager.createFeatureChannel(guild, category, feature);
+    await featureModel.setFeatureChannelId(featureId, channel.id);
+
+    const embedMsg = await channel.send({
+        embeds: [featureManager.buildFeatureDetailEmbed(feature)],
+        components: [featureManager.buildFeatureChannelButtons(feature)],
+    });
+    await featureModel.setFeatureEmbedMessageId(featureId, embedMsg.id);
+
+    const updatedFeature = await featureModel.getFeature(featureId);
+    await featureManager.updateFeatureListMessage(interaction.client, updatedFeature);
+
+    await interaction.editReply({ content: `Feature proposed! See ${channel}.` });
+}
+
 // ── WIP ──
 
 async function handleWip(interaction, bugId) {
@@ -245,6 +352,31 @@ async function handleWip(interaction, bugId) {
     await bugManager.updateBugListMessage(interaction.client, updated);
 
     await interaction.editReply({ content: 'You claimed this bug as WIP.' });
+}
+
+// ── Feature In Progress ──
+
+async function handleFeatureWip(interaction, featureId) {
+    await interaction.deferReply({ flags: 64 });
+
+    const updated = await featureModel.atomicSetInProgress(featureId, interaction.user.id);
+    if (!updated) {
+        return interaction.editReply({ content: 'This feature is already in progress or no longer proposed.' });
+    }
+
+    await interaction.channel.send(`**In Progress** — <@${interaction.user.id}> is working on this feature.`);
+
+    try {
+        const msg = await interaction.channel.messages.fetch(updated.embedMessageId);
+        await msg.edit({
+            embeds: [featureManager.buildFeatureDetailEmbed(updated)],
+            components: [featureManager.buildFeatureChannelButtons(updated)],
+        });
+    } catch { /* embed message may be gone */ }
+
+    await featureManager.updateFeatureListMessage(interaction.client, updated);
+
+    await interaction.editReply({ content: 'You claimed this feature as In Progress.' });
 }
 
 // ── Update ──
@@ -283,6 +415,27 @@ async function handleTodoUpdate(interaction, todoId) {
 
     if (!updated) {
         return interaction.editReply({ content: 'TODO not found.' });
+    }
+
+    await interaction.channel.send(`**Update** by <@${interaction.user.id}>:\n${text}`);
+    await interaction.editReply({ content: 'Update posted.' });
+}
+
+// ── Feature Update ──
+
+async function handleFeatureUpdate(interaction, featureId) {
+    await interaction.deferReply({ flags: 64 });
+
+    const text = interaction.fields.getTextInputValue('feature_update_text');
+
+    const updated = await featureModel.addUpdate(featureId, {
+        userId: interaction.user.id,
+        username: interaction.user.username,
+        text,
+    });
+
+    if (!updated) {
+        return interaction.editReply({ content: 'Feature not found.' });
     }
 
     await interaction.channel.send(`**Update** by <@${interaction.user.id}>:\n${text}`);
@@ -367,6 +520,86 @@ async function handleTodoResolve(interaction, todoId) {
     await todoManager.updateTodoListMessage(interaction.client, freshTodo);
 
     await interaction.editReply({ content: 'TODO marked as done. Channel will be cleaned up later.' });
+}
+
+// ── Feature Complete ──
+
+async function handleFeatureComplete(interaction, featureId) {
+    await interaction.deferReply({ flags: 64 });
+
+    const updated = await featureModel.atomicSetStatus(featureId, 'in_progress', 'completed');
+    const updatedFromProposed = !updated ? await featureModel.atomicSetStatus(featureId, 'proposed', 'completed') : null;
+    const feature = updated || updatedFromProposed;
+
+    if (!feature) {
+        return interaction.editReply({ content: 'This feature is already completed or not found.' });
+    }
+
+    const reopenRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`feature_reopen_${featureId}`)
+            .setLabel('Reopen')
+            .setStyle(ButtonStyle.Danger),
+    );
+    await interaction.channel.send({ content: `**Completed** by <@${interaction.user.id}>.`, components: [reopenRow] });
+
+    try {
+        const msg = await interaction.channel.messages.fetch(feature.embedMessageId);
+        await msg.edit({
+            embeds: [featureManager.buildFeatureDetailEmbed(feature)],
+            components: [],
+        });
+    } catch { /* embed may be gone */ }
+
+    const { featureDeleteDelay } = require('../../config');
+    const delayMs = featureDeleteDelay * 1000;
+    await featureModel.setDeletionScheduled(featureId, new Date(Date.now() + delayMs));
+    featureManager.scheduleDeletion(interaction.client, featureId, delayMs);
+
+    const freshFeature = await featureModel.getFeature(featureId);
+    await featureManager.updateFeatureListMessage(interaction.client, freshFeature);
+
+    await interaction.editReply({ content: 'Feature marked as completed. Channel will be cleaned up later.' });
+}
+
+// ── Feature Reject ──
+
+async function handleFeatureReject(interaction, featureId) {
+    await interaction.deferReply({ flags: 64 });
+
+    const updated = await featureModel.atomicSetStatus(featureId, 'in_progress', 'rejected');
+    const updatedFromProposed = !updated ? await featureModel.atomicSetStatus(featureId, 'proposed', 'rejected') : null;
+    const feature = updated || updatedFromProposed;
+
+    if (!feature) {
+        return interaction.editReply({ content: 'This feature is already rejected or not found.' });
+    }
+
+    const reopenRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`feature_reopen_${featureId}`)
+            .setLabel('Reopen')
+            .setStyle(ButtonStyle.Danger),
+    );
+    await interaction.channel.send({ content: `**Rejected** by <@${interaction.user.id}>.`, components: [reopenRow] });
+
+    try {
+        const msg = await interaction.channel.messages.fetch(feature.embedMessageId);
+        await msg.edit({
+            embeds: [featureManager.buildFeatureDetailEmbed(feature)],
+            components: [],
+        });
+    } catch { /* embed may be gone */ }
+
+    const { featureDeleteDelay } = require('../../config');
+    const delayMs = featureDeleteDelay * 1000;
+    await featureModel.setDeletionScheduled(featureId, new Date(Date.now() + delayMs));
+    featureManager.scheduleDeletion(interaction.client, featureId, delayMs);
+
+    const freshFeature = await featureModel.getFeature(featureId);
+    await featureManager.updateFeatureListMessage(interaction.client, freshFeature);
+
+    await interaction.editReply({ content: 'Feature marked as rejected. Channel will be cleaned up later.' });
 }
 
 // ── Reopen ──
@@ -485,6 +718,65 @@ async function handleTodoReopen(interaction, todoId) {
     await todoManager.updateTodoListMessage(interaction.client, freshTodo);
 
     await interaction.editReply({ content: `TODO has been reopened. See ${channel}.` });
+}
+
+// ── Feature Reopen ──
+
+async function handleFeatureReopen(interaction, featureId) {
+    await interaction.deferReply({ flags: 64 });
+
+    const feature = await featureModel.getFeature(featureId);
+    if (!feature) {
+        return interaction.editReply({ content: 'Feature not found.' });
+    }
+    if (feature.status !== 'completed' && feature.status !== 'rejected') {
+        return interaction.editReply({ content: 'This feature is not completed or rejected.' });
+    }
+
+    featureManager.cancelDeletion(featureId);
+    await featureModel.clearDeletionScheduled(featureId);
+
+    const updated = await featureModel.addReopenEntry(featureId, {
+        userId: interaction.user.id,
+        username: interaction.user.username,
+    });
+    if (!updated) {
+        return interaction.editReply({ content: 'Failed to reopen feature.' });
+    }
+
+    const guild = interaction.guild;
+    const repoName = updated.repositoryName;
+    const category = repoName
+        ? await featureManager.ensureFeaturesCategoryForRepo(guild, repoName)
+        : await featureManager.ensureFeaturesCategoryGeneral(guild);
+    let channel = updated.channelId ? guild.channels.cache.get(updated.channelId) : null;
+
+    if (!channel) {
+        channel = await featureManager.createFeatureChannel(guild, category, updated);
+        await featureModel.setFeatureChannelId(featureId, channel.id);
+        const replayFeature = await featureModel.getFeature(featureId);
+        await featureManager.replayUpdatesToChannel(channel, replayFeature);
+    } else {
+        await channel.send(`**Reopened** by <@${interaction.user.id}>.`);
+        try {
+            const msg = await channel.messages.fetch(updated.embedMessageId);
+            await msg.edit({
+                embeds: [featureManager.buildFeatureDetailEmbed(updated)],
+                components: [featureManager.buildFeatureChannelButtons(updated)],
+            });
+        } catch {
+            const embedMsg = await channel.send({
+                embeds: [featureManager.buildFeatureDetailEmbed(updated)],
+                components: [featureManager.buildFeatureChannelButtons(updated)],
+            });
+            await featureModel.setFeatureEmbedMessageId(featureId, embedMsg.id);
+        }
+    }
+
+    const freshFeature = await featureModel.getFeature(featureId);
+    await featureManager.updateFeatureListMessage(interaction.client, freshFeature);
+
+    await interaction.editReply({ content: `Feature has been reopened. See ${channel}.` });
 }
 
 // ── TODO In Progress ──
