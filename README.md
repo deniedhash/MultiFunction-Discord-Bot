@@ -1,6 +1,6 @@
 # MultiFunction Discord Bot
 
-A feature-rich Discord bot built with discord.js v14 featuring music playback, GitHub integration (file mirroring + webhook notifications), and bug tracking.
+A feature-rich Discord bot built with discord.js v14 featuring music playback, GitHub integration (file mirroring + webhook notifications), bug tracking, and TODO tracking.
 
 ## Features
 
@@ -54,6 +54,24 @@ Integrated bug tracking tied to your GitHub repos. Bugs are reported via a butto
 - Bug updates and history replay
 - Auto-cleanup of resolved bug channels
 - External bug creation via API and GitHub Issues integration
+
+### TODO Tracking
+Integrated TODO tracking that mirrors the bug tracker. TODOs can be repo-scoped or general (not tied to a repo). They are created via a button/modal in `#add-todo`, tracked in `#todo-list`, and each TODO gets its own channel under a per-repo category or `Todos: General`.
+
+| Command | Description |
+|---------|-------------|
+| `!addtodo` | Set up TODO tracking channels (requires Manage Channels permission) |
+
+**Features:**
+- Add TODOs via button + modal (title, description, priority, due date)
+- Per-repo TODO categories + a `Todos: General` category
+- TODO lifecycle: Open → In Progress → Done (with reopen support)
+- TODO updates and history replay
+- Auto-cleanup of done TODO channels
+- External TODO creation via API
+
+**API:**
+- `POST /todos` — Create repo-scoped TODOs (requires `repoName`, `title`, `platform`, `reporter`)
 
 ### General
 | Command | Description |
@@ -168,6 +186,7 @@ docker run -d --env-file .env --link mongo:mongo \
 │   │   ├── general/                  # ping, help, userinfo, serverinfo, avatar, invite, note, uptime, cpu, ram
 │   │   ├── music/                    # play, skip, stop, queue, nowplaying, pause, resume, volume, loop, shuffle, seek
 │   │   ├── bugs/                     # addbug
+│   │   ├── todos/                    # addtodo
 │   │   └── github/                   # setgit, seegitinfo, setrepo, mirror, unmirror, changegitbranch, etc.
 │   ├── events/
 │   │   ├── ready.js
@@ -180,6 +199,9 @@ docker run -d --env-file .env --link mongo:mongo \
 │   ├── bugs/
 │   │   ├── bugManager.js             # Bug channel/embed helpers, lifecycle management
 │   │   └── bugModel.js               # Mongoose model for bugs
+│   ├── todos/
+│   │   ├── todoManager.js            # TODO channel/embed helpers, lifecycle management
+│   │   └── todoModel.js              # Mongoose model for TODOs
 │   └── music/
 │       ├── queue.js                   # Queue management, loop, shuffle, seek
 │       ├── ytdlp.js                   # yt-dlp streaming and search
