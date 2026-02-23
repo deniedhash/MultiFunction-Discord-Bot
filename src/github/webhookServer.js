@@ -5,6 +5,7 @@ const { handleGithubEvent } = require('./eventHandler');
 const { getGuildsForRepo } = require('./repoSetupModel');
 const { createBugFromExternal } = require('../bugs/bugManager');
 const { createTodoFromExternal } = require('../todos/todoManager');
+const { createFeatureFromExternal } = require('../features/featureManager');
 const Webhook = require('./webhookModel'); // Import the Webhook model
 
 function startWebhookServer(client) {
@@ -97,6 +98,64 @@ function startWebhookServer(client) {
             res.status(201).json({ created: results });
         } catch (err) {
             console.error('Error creating todo via API:', err);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    });
+
+    // ── Feature creation API ──
+    app.post('/features', express.json(), async (req, res) => {
+        try {
+            if (webhookSecret && webhookSecret.length > 0) {
+                const auth = req.headers['authorization'];
+                if (!auth || auth !== `Bearer ${webhookSecret}`) {
+                    return res.status(401).json({ error: 'Unauthorized' });
+                }
+            }
+
+            const { repositoryId, repositoryName, title, description, priority, createdBy, dueDate, tags } = req.body;
+
+            if (!title || !createdBy) {
+                return res.status(400).json({ error: 'Missing required fields: title, createdBy' });
+            }
+
+            let guildIds = [];
+            if (repositoryName) {
+                const repoGuilds = await getGuildsForRepo(repositoryName);
+                guildIds = repoGuilds.map(rg => rg.guildId);
+            } else {
+                // If no repositoryName, we need a way to determine which guilds to create the feature in.
+                // For now, we'll assume it's for all guilds that have the feature system set up.
+                // This might need refinement based on actual requirements.
+                // For simplicity, let's assume the API caller provides guildId if it's a general feature.
+                if (!req.body.guildId) {
+                    return res.status(400).json({ error: 'Missing guildId for general features' });
+                }
+                guildIds.push(req.body.guildId);
+            }
+
+            if (guildIds.length === 0) {
+                return res.status(404).json({ error: 'No guilds found to create this feature in' });
+            }
+
+            const results = [];
+            for (const guildId of guildIds) {
+                const feature = await createFeatureFromExternal(client, {
+                    guildId,
+                    repositoryId: repositoryId || null,
+                    repositoryName: repositoryName || null,
+                    title,
+                    description: description || 'No description provided.',
+                    priority: priority || 'medium',
+                    createdBy,
+                    dueDate: dueDate || null,
+                    tags: Array.isArray(tags) ? tags : [],
+                });
+                if (feature) results.push({ guildId, featureId: feature._id.toString() });
+            }
+
+            res.status(201).json({ created: results });
+        } catch (err) {
+            console.error('Error creating feature via API:', err);
             res.status(500).json({ error: 'Internal server error' });
         }
     });
