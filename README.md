@@ -73,6 +73,24 @@ Integrated TODO tracking that mirrors the bug tracker. TODOs can be repo-scoped 
 **API:**
 - `POST /todos` — Create repo-scoped TODOs (requires `repoName`, `title`, `platform`, `reporter`)
 
+### Feature Tracking
+Integrated feature tracking that mirrors the bug and TODO trackers. Features can be repo-scoped or general (not tied to any repo). They are proposed via a button/modal in `#add-feature`, tracked in `#feature-list`, and each feature gets its own channel under a per-repo category or `Features: General`.
+
+| Command | Description |
+|---------|-------------|
+| `!addfeature` | Set up feature tracking channels (requires Manage Channels permission) |
+
+**Features:**
+- Propose features via button + modal (title, description, priority, due date, tags)
+- Per-repo feature categories + a `Features: General` category
+- Feature lifecycle: Proposed → In Progress → Completed → Rejected (with reopen support)
+- Feature updates and history replay
+- Auto-cleanup of completed/rejected feature channels
+- External feature creation via API
+
+**API:**
+- `POST /features` — Create repo-scoped or general features (requires `title`, `createdBy`, and optionally `repositoryName`, `description`, `priority`, `dueDate`, `tags`)
+
 ### General
 | Command | Description |
 |---------|-------------|
@@ -124,6 +142,7 @@ cp .env.example .env
 | `SPOTIFY_CLIENT_SECRET` | Spotify app client secret | *optional* |
 | `ENCRYPTION_KEY` | Key for encrypting stored GitHub PATs (AES-256-GCM) | *required for file mirroring* |
 | `WEBHOOK_URL` | Public URL of your bot server (for auto-creating GitHub webhooks) | *optional* |
+| `ITEM_DELETE_DELAY` | Delay in seconds before resolved/completed/rejected items (bugs, todos, features) are auto-cleaned | `86400` (24 hours) |
 
 You can generate a secure encryption key with:
 
@@ -202,6 +221,10 @@ docker run -d --env-file .env --link mongo:mongo \
 │   ├── todos/
 │   │   ├── todoManager.js            # TODO channel/embed helpers, lifecycle management
 │   │   └── todoModel.js              # Mongoose model for TODOs
+│   ├── features/
+│   │   ├── featureManager.js         # Feature channel/embed helpers, lifecycle management
+│   │   ├── featureModel.js           # Mongoose model for features
+│   │   └── featureStartup.js         # Initializes feature system on bot startup
 │   └── music/
 │       ├── queue.js                   # Queue management, loop, shuffle, seek
 │       ├── ytdlp.js                   # yt-dlp streaming and search
