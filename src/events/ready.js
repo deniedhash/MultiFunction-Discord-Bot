@@ -1,5 +1,6 @@
 const { Events } = require("discord.js");
 const { initBugSystem } = require("../bugs/bugStartup");
+const { initTodoSystem } = require("../todos/todoStartup");
 const StatusManager = require("../utils/statusManager");
 
 module.exports = {
@@ -12,6 +13,11 @@ module.exports = {
       await initBugSystem(client);
     } catch (err) {
       console.error("Bug system init error:", err);
+    }
+    try {
+      await initTodoSystem(client);
+    } catch (err) {
+      console.error("Todo system init error:", err);
     }
 
     // ===== Start Presence System =====
