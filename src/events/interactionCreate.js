@@ -10,6 +10,9 @@ const todoModel = require("../todos/todoModel");
 const todoManager = require("../todos/todoManager");
 const featureModel = require("../features/featureModel");
 const featureManager = require("../features/featureManager");
+const ideaManager = require("../ideas/ideaManager");
+const ideaModel = require("../ideas/ideaModel");
+const { PermissionFlagsBits } = require("discord.js");
 const { getGuildRepoList } = require("../github/repoSetupModel");
 
 module.exports = {
@@ -72,6 +75,42 @@ async function handleButton(interaction) {
       components: [featureManager.buildRepoSelectMenu(repos || [])],
       flags: 64,
     });
+  }
+
+  if (id === "idea_add") {
+    return interaction.showModal(ideaManager.buildAddIdeaModal());
+  }
+
+  if (id.startsWith("idea_review_")) {
+    return handleIdeaStatusChange(
+      interaction,
+      id.replace("idea_review_", ""),
+      "under_review",
+    );
+  }
+
+  if (id.startsWith("idea_accept_")) {
+    return handleIdeaStatusChange(
+      interaction,
+      id.replace("idea_accept_", ""),
+      "accepted",
+    );
+  }
+
+  if (id.startsWith("idea_reject_")) {
+    return handleIdeaStatusChange(
+      interaction,
+      id.replace("idea_reject_", ""),
+      "rejected",
+    );
+  }
+
+  if (id.startsWith("idea_reopen_")) {
+    return handleIdeaStatusChange(
+      interaction,
+      id.replace("idea_reopen_", ""),
+      "open",
+    );
   }
 
   if (id.startsWith("bug_wip_")) {
@@ -183,6 +222,10 @@ async function handleModal(interaction) {
       interaction,
       id.replace("feature_modal_update_", ""),
     );
+  }
+
+  if (id === "idea_modal_add") {
+    return handleIdeaCreate(interaction);
   }
 }
 
@@ -370,6 +413,97 @@ async function handleFeatureCreate(interaction, repoName) {
   );
 
   await interaction.editReply({ content: `Feature proposed! See ${channel}.` });
+}
+
+// ── Idea creation ──
+
+async function handleIdeaCreate(interaction) {
+  await interaction.deferReply({ flags: 64 });
+
+  const title = interaction.fields.getTextInputValue("idea_title");
+  const description =
+    interaction.fields.getTextInputValue("idea_description") || "";
+  const tags = (interaction.fields.getTextInputValue("idea_tags") || "")
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter((tag) => tag.length > 0);
+
+  const { channel } = await ideaManager.createIdeaFromInteraction(interaction, {
+    title,
+    description,
+    tags,
+  });
+
+  await interaction.editReply({ content: `Idea submitted! See ${channel}.` });
+}
+
+async function handleIdeaStatusChange(interaction, ideaId, nextStatus) {
+  await interaction.deferReply({ flags: 64 });
+
+  const member = interaction.member;
+  if (!member?.permissions?.has(PermissionFlagsBits.ManageChannels)) {
+    return interaction.editReply({
+      content: "You need the **Manage Channels** permission to do that.",
+    });
+  }
+
+  const idea = await ideaModel.getIdea(ideaId);
+  if (!idea) {
+    return interaction.editReply({ content: "Idea not found." });
+  }
+
+  let updated = null;
+  if (nextStatus === "under_review") {
+    updated = await ideaModel.atomicSetStatus(ideaId, "open", "under_review");
+  } else if (nextStatus === "accepted") {
+    updated =
+      (await ideaModel.atomicSetStatus(ideaId, "open", "accepted")) ||
+      (await ideaModel.atomicSetStatus(ideaId, "under_review", "accepted"));
+  } else if (nextStatus === "rejected") {
+    updated =
+      (await ideaModel.atomicSetStatus(ideaId, "open", "rejected")) ||
+      (await ideaModel.atomicSetStatus(ideaId, "under_review", "rejected"));
+  } else if (nextStatus === "open") {
+    updated =
+      (await ideaModel.atomicSetStatus(ideaId, "accepted", "open")) ||
+      (await ideaModel.atomicSetStatus(ideaId, "rejected", "open"));
+  }
+
+  if (!updated) {
+    return interaction.editReply({
+      content: "This idea cannot be updated to that status.",
+    });
+  }
+
+  try {
+    const msg = await interaction.channel.messages.fetch(updated.messageId);
+    await msg.edit({
+      embeds: [ideaManager.buildIdeaDetailEmbed(updated)],
+      components: [ideaManager.buildIdeaChannelButtons(updated)],
+    });
+  } catch {
+    /* embed message may be gone */
+  }
+
+  if (updated.status === "rejected") {
+    const { itemDeleteDelay } = require("../../config");
+    const delayMs = itemDeleteDelay * 1000;
+    await ideaModel.setDeletionScheduled(
+      updated._id.toString(),
+      new Date(Date.now() + delayMs),
+    );
+    ideaManager.scheduleDeletion(interaction.client, updated._id.toString(), delayMs);
+  } else {
+    ideaManager.cancelDeletion(updated._id.toString());
+    await ideaModel.clearDeletionScheduled(updated._id.toString());
+  }
+
+  const freshIdea = await ideaModel.getIdea(updated._id.toString());
+  await ideaManager.updateIdeaListMessage(interaction.client, freshIdea || updated);
+
+  await interaction.editReply({
+    content: `Idea status updated to **${updated.status}**.`,
+  });
 }
 
 // ── WIP ──
