@@ -38,17 +38,18 @@ function lockedCategoryOverwrites(guild) {
 }
 
 async function ensureFeaturesCategoryGeneral(guild) {
+  const categoryName = "Features: General";
   const existing = guild.channels.cache.find(
     (c) =>
       c.type === ChannelType.GuildCategory &&
-      c.name.toLowerCase() === "features",
+      c.name.toLowerCase() === categoryName.toLowerCase(),
   );
   if (existing) {
     if (existing.position !== 0) await existing.setPosition(0);
     return existing;
   }
   return guild.channels.create({
-    name: "features",
+    name: categoryName,
     type: ChannelType.GuildCategory,
     position: 0,
     permissionOverwrites: lockedCategoryOverwrites(guild),

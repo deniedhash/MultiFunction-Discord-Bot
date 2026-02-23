@@ -112,36 +112,21 @@ function startWebhookServer(client) {
                 }
             }
 
-            const { repositoryId, repositoryName, title, description, priority, createdBy, dueDate, tags } = req.body;
+            const { repositoryName, title, description, priority, createdBy, dueDate, tags } = req.body;
 
-            if (!title || !createdBy) {
-                return res.status(400).json({ error: 'Missing required fields: title, createdBy' });
+            if (!repositoryName || !title || !createdBy) {
+                return res.status(400).json({ error: 'Missing required fields: repositoryName, title, createdBy' });
             }
 
-            let guildIds = [];
-            if (repositoryName) {
-                const repoGuilds = await getGuildsForRepo(repositoryName);
-                guildIds = repoGuilds.map(rg => rg.guildId);
-            } else {
-                // If no repositoryName, we need a way to determine which guilds to create the feature in.
-                // For now, we'll assume it's for all guilds that have the feature system set up.
-                // This might need refinement based on actual requirements.
-                // For simplicity, let's assume the API caller provides guildId if it's a general feature.
-                if (!req.body.guildId) {
-                    return res.status(400).json({ error: 'Missing guildId for general features' });
-                }
-                guildIds.push(req.body.guildId);
-            }
-
-            if (guildIds.length === 0) {
-                return res.status(404).json({ error: 'No guilds found to create this feature in' });
+            const repoGuilds = await getGuildsForRepo(repositoryName);
+            if (!repoGuilds.length) {
+                return res.status(404).json({ error: 'No guilds are tracking this repository' });
             }
 
             const results = [];
-            for (const guildId of guildIds) {
+            for (const repoConfig of repoGuilds) {
                 const feature = await createFeatureFromExternal(client, {
-                    guildId,
-                    repositoryId: repositoryId || null,
+                    guildId: repoConfig.guildId,
                     repositoryName: repositoryName || null,
                     title,
                     description: description || 'No description provided.',
@@ -150,7 +135,7 @@ function startWebhookServer(client) {
                     dueDate: dueDate || null,
                     tags: Array.isArray(tags) ? tags : [],
                 });
-                if (feature) results.push({ guildId, featureId: feature._id.toString() });
+                if (feature) results.push({ guildId: repoConfig.guildId, featureId: feature._id.toString() });
             }
 
             res.status(201).json({ created: results });
