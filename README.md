@@ -1,6 +1,6 @@
 # MultiFunction Discord Bot
 
-A feature-rich Discord bot built with discord.js v14 featuring music playback, GitHub integration (file mirroring + webhook notifications), bug tracking, and TODO tracking.
+A feature-rich Discord bot built with discord.js v14 featuring music playback, GitHub integration (file mirroring + webhook notifications), bug tracking, TODO tracking, feature tracking, and product idea tracking.
 
 ## Features
 
@@ -91,6 +91,20 @@ Integrated feature tracking that mirrors the bug and TODO trackers. Features can
 **API:**
 - `POST /features` — Create repo-scoped or general features (requires `title`, `createdBy`, and optionally `repositoryName`, `description`, `priority`, `dueDate`, `tags`)
 
+### Idea Tracking
+Lightweight product idea tracker. Ideas are submitted via a button + modal in `#add-idea`, tracked in `#idea-list`, and each idea gets its own discussion channel under `Product Ideas`.
+
+| Command | Description |
+|---------|-------------|
+| `!addidea` | Set up idea tracking channels (requires Manage Channels permission) |
+
+**Features:**
+- Submit ideas via button + modal (title, description, tags)
+- `Product Ideas` category with `#add-idea` and `#idea-list`
+- Each idea gets its own discussion channel with a pinned reference embed
+- Idea lifecycle: Open → Under Review → Accepted/Rejected (with reopen support)
+- Rejected idea channels auto-clean up after `ITEM_DELETE_DELAY`
+
 ### General
 | Command | Description |
 |---------|-------------|
@@ -142,7 +156,7 @@ cp .env.example .env
 | `SPOTIFY_CLIENT_SECRET` | Spotify app client secret | *optional* |
 | `ENCRYPTION_KEY` | Key for encrypting stored GitHub PATs (AES-256-GCM) | *required for file mirroring* |
 | `WEBHOOK_URL` | Public URL of your bot server (for auto-creating GitHub webhooks) | *optional* |
-| `ITEM_DELETE_DELAY` | Delay in seconds before resolved/completed/rejected items (bugs, todos, features) are auto-cleaned | `86400` (24 hours) |
+| `ITEM_DELETE_DELAY` | Delay in seconds before resolved/completed/rejected items (bugs, todos, features, ideas) are auto-cleaned | `86400` (24 hours) |
 
 You can generate a secure encryption key with:
 
@@ -206,9 +220,11 @@ docker run -d --env-file .env --link mongo:mongo \
 │   │   ├── music/                    # play, skip, stop, queue, nowplaying, pause, resume, volume, loop, shuffle, seek
 │   │   ├── bugs/                     # addbug
 │   │   ├── todos/                    # addtodo
+│   │   ├── ideas/                    # addidea
 │   │   └── github/                   # setgit, seegitinfo, setrepo, mirror, unmirror, changegitbranch, etc.
 │   ├── events/
 │   │   ├── ready.js
+│   │   ├── interactionCreate.js
 │   │   └── messageCreate.js
 │   └── github/
 │       ├── webhookServer.js          # Express server for GitHub webhooks
@@ -225,6 +241,10 @@ docker run -d --env-file .env --link mongo:mongo \
 │   │   ├── featureManager.js         # Feature channel/embed helpers, lifecycle management
 │   │   ├── featureModel.js           # Mongoose model for features
 │   │   └── featureStartup.js         # Initializes feature system on bot startup
+│   ├── ideas/
+│   │   ├── ideaManager.js            # Idea channel/embed helpers, lifecycle management
+│   │   ├── ideaModel.js              # Mongoose model for ideas
+│   │   └── ideaStartup.js            # Initializes idea system on bot startup
 │   └── music/
 │       ├── queue.js                   # Queue management, loop, shuffle, seek
 │       ├── ytdlp.js                   # yt-dlp streaming and search
