@@ -1,6 +1,6 @@
 const { PermissionFlagsBits } = require('discord.js');
 const {
-    ensureFeaturesCategoryGeneral, ensureAddFeatureChannel, ensureFeatureListChannel,
+    ensureFeaturesCategory, ensureAddFeatureChannel, ensureFeatureListChannel,
     buildAddFeatureEmbed, buildAddFeatureButton, backfillFeatureList,
 } = require('../../features/featureManager');
 const { getGuildRepoList } = require('../../github/repoSetupModel');
@@ -16,7 +16,7 @@ module.exports = {
         }
 
         const guild = message.guild;
-        const category = await ensureFeaturesCategoryGeneral(guild);
+        const category = await ensureFeaturesCategory(guild);
         const addFeatureChannel = await ensureAddFeatureChannel(guild, category);
         await ensureFeatureListChannel(guild, category);
 

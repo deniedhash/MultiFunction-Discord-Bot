@@ -37,8 +37,27 @@ function lockedCategoryOverwrites(guild) {
   ];
 }
 
-async function ensureFeaturesCategoryGeneral(guild) {
-  const categoryName = "Features: General";
+async function ensureFeaturesCategory(guild) {
+  const existing = guild.channels.cache.find(
+    (c) =>
+      c.type === ChannelType.GuildCategory &&
+      c.name.toLowerCase() === "features",
+  );
+  if (existing) {
+    if (existing.position !== 0) await existing.setPosition(0);
+    return existing;
+  }
+  return guild.channels.create({
+    name: "features",
+    type: ChannelType.GuildCategory,
+    position: 0,
+    permissionOverwrites: lockedCategoryOverwrites(guild),
+  });
+}
+
+async function ensureFeaturesCategoryForRepo(guild, repoName) {
+  const shortName = repoName.includes("/") ? repoName.split("/")[1] : repoName;
+  const categoryName = `Features: ${shortName}`;
   const existing = guild.channels.cache.find(
     (c) =>
       c.type === ChannelType.GuildCategory &&
@@ -56,9 +75,8 @@ async function ensureFeaturesCategoryGeneral(guild) {
   });
 }
 
-async function ensureFeaturesCategoryForRepo(guild, repoName) {
-  const shortName = repoName.includes("/") ? repoName.split("/")[1] : repoName;
-  const categoryName = `Features: ${shortName}`;
+async function ensureFeaturesCategoryGeneral(guild) {
+  const categoryName = "Features: General";
   const existing = guild.channels.cache.find(
     (c) =>
       c.type === ChannelType.GuildCategory &&
@@ -492,11 +510,7 @@ async function updateFeatureListMessage(client, feature) {
   const guild = client.guilds.cache.get(feature.guildId);
   if (!guild) return;
 
-  const category = guild.channels.cache.find(
-    (c) =>
-      c.type === ChannelType.GuildCategory &&
-      c.name.toLowerCase() === "features",
-  );
+  const category = await ensureFeaturesCategory(guild);
   if (!category) return;
   const featureListChannel = guild.channels.cache.find(
     (c) => c.parentId === category.id && c.name === "feature-list",
@@ -607,11 +621,7 @@ async function createFeatureFromExternal(client, data) {
   const featureId = feature._id.toString();
 
   // Only create channels if !addfeature has been set up (shared Features category exists)
-  const featuresCategory = guild.channels.cache.find(
-    (c) =>
-      c.type === ChannelType.GuildCategory &&
-      c.name.toLowerCase() === "features",
-  );
+  const featuresCategory = await ensureFeaturesCategory(guild);
   if (!featuresCategory) return feature;
 
   const category = feature.repositoryName
@@ -633,8 +643,9 @@ async function createFeatureFromExternal(client, data) {
 }
 
 module.exports = {
-  ensureFeaturesCategoryGeneral,
+  ensureFeaturesCategory,
   ensureFeaturesCategoryForRepo,
+  ensureFeaturesCategoryGeneral,
   ensureAddFeatureChannel,
   ensureFeatureListChannel,
   createFeatureChannel,
