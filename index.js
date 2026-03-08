@@ -1,3 +1,4 @@
+//Index is Here
 const { Client, Collection, GatewayIntentBits } = require("discord.js");
 const mongoose = require("mongoose");
 const { token, mongoUri } = require("./config");
